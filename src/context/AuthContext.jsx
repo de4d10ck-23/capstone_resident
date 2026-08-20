@@ -8,7 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('resident_token'));
   const [loading, setLoading] = useState(true);
 
-  const API_URL = 'http://localhost:8080/api';
+  const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+  const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
 
   useEffect(() => {
     const initAuth = async () => {
