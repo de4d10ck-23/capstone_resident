@@ -8,8 +8,12 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('resident_token'));
   const [loading, setLoading] = useState(true);
 
-  const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-  const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl.replace(/\/$/, '')}/api`;
+  let rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').trim();
+  if (!rawApiUrl.includes('localhost') && !rawApiUrl.includes('127.0.0.1')) {
+    rawApiUrl = rawApiUrl.replace(/^http:\/\//i, 'https://');
+  }
+  const cleanApiUrl = rawApiUrl.replace(/\/$/, '');
+  const API_URL = cleanApiUrl.endsWith('/api') ? cleanApiUrl : `${cleanApiUrl}/api`;
 
   useEffect(() => {
     const initAuth = async () => {
