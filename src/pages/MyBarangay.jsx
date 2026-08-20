@@ -57,16 +57,16 @@ const MyBarangay = () => {
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
           <Link
             to="/portal/submit-concern"
-            className="px-5 py-2.5 rounded-full bg-white text-blue-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5"
+            className="px-5 py-2.5 rounded-full bg-white text-blue-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
           >
             Report an Issue
           </Link>
           <Link
             to="/portal/request-inspection"
-            className="px-5 py-2.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5"
+            className="px-5 py-2.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
           >
             Request Inspection
           </Link>

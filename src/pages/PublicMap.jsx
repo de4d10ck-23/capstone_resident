@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { Droplets, ShieldCheck, AlertTriangle, XCircle, Search, Filter, Layers, Navigation, Info } from "lucide-react";
+import { Droplets, ShieldCheck, AlertTriangle, XCircle, Search, Filter, Layers, Navigation, Info, MapPin, List, Map as MapIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_KEY || "pk.eyJ1IjoicmFsZDEyMDEwMiIsImEiOiJjbWttZGNyaWgwY3h3M2xzZmIwZ3VhYnM3In0.xkubwGBDjYnc41XB_7FT1g";
@@ -19,6 +19,7 @@ const PublicMap = () => {
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/streets-v12");
+  const [mobileTab, setMobileTab] = useState("map"); // 'map' or 'list'
 
   // Fetch water sources from backend API
   useEffect(() => {
@@ -70,37 +71,37 @@ const PublicMap = () => {
     };
   }, [mapStyle]);
 
-  // Update Markers on Map
+  // Add / Update Mapbox Markers when locations or filters change
   useEffect(() => {
     if (!map.current) return;
 
     // Clear existing markers
-    markersRef.current.forEach((m) => m.remove());
+    markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
     // Filter locations
     const filtered = locations.filter((loc) => {
-      const matchQuery = loc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         loc.barangay?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchQuery =
+        loc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        loc.barangay?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchBarangay = selectedBarangay === "all" || loc.barangay === selectedBarangay;
       const matchStatus = selectedStatus === "all" || loc.status?.toLowerCase() === selectedStatus.toLowerCase();
       return matchQuery && matchBarangay && matchStatus;
     });
 
+    // Add markers for filtered locations
     filtered.forEach((loc) => {
       if (!loc.latitude || !loc.longitude) return;
 
       const isSafe = loc.status?.toLowerCase() === "safe";
       const isWarning = loc.status?.toLowerCase() === "warning";
-      const isDanger = loc.status?.toLowerCase() === "undrinkable" || loc.status?.toLowerCase() === "contaminated";
-
       const color = isSafe ? "#10b981" : isWarning ? "#f59e0b" : "#ef4444";
 
-      // Create Custom Marker DOM Element
+      // Custom marker DOM element
       const el = document.createElement("div");
       el.className = "custom-water-marker cursor-pointer transform hover:scale-125 transition-transform duration-200";
       el.innerHTML = `
-        <div style="background-color: ${color}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+        <div style="background-color: ${color}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.35);">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
           </svg>
@@ -109,11 +110,13 @@ const PublicMap = () => {
 
       el.addEventListener("click", () => {
         setSelectedLocation(loc);
-        map.current.flyTo({
-          center: [loc.longitude, loc.latitude],
-          zoom: 15,
-          duration: 1200
-        });
+        if (map.current) {
+          map.current.flyTo({
+            center: [loc.longitude, loc.latitude],
+            zoom: 15.5,
+            duration: 1000,
+          });
+        }
       });
 
       const marker = new mapboxgl.Marker(el)
@@ -124,17 +127,57 @@ const PublicMap = () => {
     });
   }, [locations, searchQuery, selectedBarangay, selectedStatus]);
 
-  const barangayOptions = Array.from(new Set(locations.map((l) => l.barangay).filter(Boolean))).sort();
+  // Unique barangays for filter dropdown
+  const barangayOptions = Array.from(
+    new Set(locations.map((loc) => loc.barangay).filter(Boolean))
+  ).sort();
+
+  const filteredLocations = locations.filter((loc) => {
+    const matchQuery =
+      loc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      loc.barangay?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchBarangay = selectedBarangay === "all" || loc.barangay === selectedBarangay;
+    const matchStatus = selectedStatus === "all" || loc.status?.toLowerCase() === selectedStatus.toLowerCase();
+    return matchQuery && matchBarangay && matchStatus;
+  });
 
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row relative overflow-hidden font-sans">
+      {/* Mobile View Toggle Bar (Only visible on small screens) */}
+      <div className="md:hidden bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-center gap-2 z-20 shadow-sm flex-shrink-0">
+        <button
+          onClick={() => setMobileTab("map")}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            mobileTab === "map"
+              ? "bg-[#0f3b82] text-white shadow-sm"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+          }`}
+        >
+          <MapIcon size={14} />
+          <span>Interactive Map</span>
+        </button>
+        <button
+          onClick={() => setMobileTab("list")}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+            mobileTab === "list"
+              ? "bg-[#0f3b82] text-white shadow-sm"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+          }`}
+        >
+          <List size={14} />
+          <span>Stations List ({filteredLocations.length})</span>
+        </button>
+      </div>
+
       {/* Map Filter Sidebar */}
-      <div className="w-full md:w-96 bg-white/95 backdrop-blur-xl border-r border-slate-200 z-10 flex flex-col shadow-xl">
-        <div className="p-6 border-b border-slate-100 space-y-4">
+      <div className={`w-full md:w-96 bg-white/95 backdrop-blur-xl border-r border-slate-200 z-10 flex flex-col shadow-xl flex-shrink-0 ${
+        mobileTab === "map" ? "hidden md:flex" : "flex flex-1"
+      }`}>
+        <div className="p-4 sm:p-6 border-b border-slate-100 space-y-3 sm:space-y-4">
           <div>
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Public Water Map</span>
-            <h1 className="text-2xl font-bold text-slate-900">Maasin City Sources</h1>
-            <p className="text-xs text-slate-500 mt-1">Explore real-time tested drinking water stations</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Maasin City Sources</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Explore real-time tested drinking water stations</p>
           </div>
 
           {/* Search input */}
@@ -145,18 +188,18 @@ const PublicMap = () => {
               placeholder="Search station or barangay..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
             />
           </div>
 
           {/* Filters */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Barangay</label>
+              <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Barangay</label>
               <select
                 value={selectedBarangay}
                 onChange={(e) => setSelectedBarangay(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600"
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600"
               >
                 <option value="all">All Barangays</option>
                 {barangayOptions.map((b) => (
@@ -166,11 +209,11 @@ const PublicMap = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Status</label>
+              <label className="block text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">Status</label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600"
+                className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600"
               >
                 <option value="all">All Statuses</option>
                 <option value="safe">Safe Only</option>
@@ -184,11 +227,11 @@ const PublicMap = () => {
         {/* Locations List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-500">
-            <span>Water Stations ({locations.length})</span>
+            <span>Water Stations ({filteredLocations.length})</span>
             {loading && <span className="text-blue-600 animate-pulse">Loading data...</span>}
           </div>
 
-          {locations.map((loc) => {
+          {filteredLocations.map((loc) => {
             const isSafe = loc.status?.toLowerCase() === "safe";
             const isWarning = loc.status?.toLowerCase() === "warning";
             const isSelected = selectedLocation?.id === loc.id;
@@ -198,15 +241,16 @@ const PublicMap = () => {
                 key={loc.id}
                 onClick={() => {
                   setSelectedLocation(loc);
+                  setMobileTab("map"); // Switch back to map on mobile when station tapped
                   if (map.current && loc.longitude && loc.latitude) {
                     map.current.flyTo({
                       center: [loc.longitude, loc.latitude],
-                      zoom: 15,
+                      zoom: 15.5,
                       duration: 1000
                     });
                   }
                 }}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer ${
                   isSelected
                     ? "bg-blue-50/80 border-blue-500 shadow-md ring-2 ring-blue-500/20"
                     : "bg-white border-slate-200/80 hover:border-blue-300 hover:shadow-sm"
@@ -237,24 +281,24 @@ const PublicMap = () => {
         </div>
 
         {/* Legend */}
-        <div className="p-4 border-t border-slate-200 bg-slate-50 text-xs text-slate-600 flex items-center justify-around">
+        <div className="p-3.5 border-t border-slate-200 bg-slate-50 text-xs text-slate-600 flex items-center justify-around flex-shrink-0">
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
             <span>Safe</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
             <span>Warning</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-red-500"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
             <span>Contaminated</span>
           </div>
         </div>
       </div>
 
-      {/* Map Canvas */}
-      <div className="flex-1 relative">
+      {/* Map Canvas Container */}
+      <div className={`flex-1 relative ${mobileTab === "list" ? "hidden md:block" : "block"}`}>
         <div ref={mapContainer} className="w-full h-full" />
 
         {/* Map Style Selector Overlay */}
@@ -296,7 +340,7 @@ const PublicMap = () => {
 
         {/* Selected Station Details Floating Card */}
         {selectedLocation && (
-          <div className="absolute bottom-6 right-6 z-10 w-80 bg-white/95 backdrop-blur-2xl rounded-2xl p-5 shadow-2xl border border-slate-100 animate-fade-in">
+          <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-80 z-20 bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-slate-100 animate-fade-in">
             <div className="flex items-start justify-between pb-3 border-b border-slate-100">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Selected Station</span>
@@ -305,7 +349,7 @@ const PublicMap = () => {
               </div>
               <button
                 onClick={() => setSelectedLocation(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100"
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100"
               >
                 ✕
               </button>

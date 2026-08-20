@@ -175,19 +175,19 @@ const Home = () => {
               </motion.div>
 
               {/* Action Buttons */}
-              <motion.div variants={fadeInUp} className="flex flex-wrap gap-4 pt-2">
+              <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-3 pt-2">
                 <Link
                   to="/public-map"
-                  className="inline-flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white px-7 py-3.5 rounded-full text-base font-semibold transition-all shadow-lg hover:shadow-blue-900/25 hover:-translate-y-0.5"
+                  className="inline-flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 text-white px-7 py-3.5 rounded-full text-sm sm:text-base font-semibold transition-all shadow-lg hover:shadow-blue-900/25 hover:-translate-y-0.5 w-full sm:w-auto"
                 >
-                  <MapPin size={20} />
+                  <MapPin size={18} />
                   <span>View Public Map</span>
                 </Link>
 
                 {user ? (
                   <Link
                     to="/portal"
-                    className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 px-7 py-3.5 rounded-full text-base font-semibold transition-all shadow-sm hover:shadow hover:-translate-y-0.5"
+                    className="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 px-7 py-3.5 rounded-full text-sm sm:text-base font-semibold transition-all shadow-sm hover:shadow hover:-translate-y-0.5 w-full sm:w-auto"
                   >
                     <span>Go to Resident Portal</span>
                     <ArrowRight size={18} />
@@ -195,7 +195,7 @@ const Home = () => {
                 ) : (
                   <Link
                     to="/register"
-                    className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 px-7 py-3.5 rounded-full text-base font-semibold transition-all shadow-sm hover:shadow hover:-translate-y-0.5"
+                    className="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 px-7 py-3.5 rounded-full text-sm sm:text-base font-semibold transition-all shadow-sm hover:shadow hover:-translate-y-0.5 w-full sm:w-auto"
                   >
                     <span>Join Community</span>
                     <ArrowRight size={18} />
