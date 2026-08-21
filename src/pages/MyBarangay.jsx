@@ -149,22 +149,23 @@ const MyBarangay = () => {
                   </tr>
                 ) : (
                   sources.map((s) => {
-                    const isSafe = s.status?.toLowerCase() === "safe";
-                    const isWarning = s.status?.toLowerCase() === "warning";
+                    const statusStr = (s.status || s.water_status || "safe").toLowerCase();
+                    const isSafe = statusStr === "safe";
+                    const isWarning = statusStr === "warning";
 
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{s.name}</td>
-                        <td className="py-3.5 px-4 text-slate-600 capitalize">{s.source_type || "Well"}</td>
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{s.full_name || s.name || "Water Station"}</td>
+                        <td className="py-3.5 px-4 text-slate-600 capitalize">{(s.source_type || s.type || "Well").replace(/_/g, " ")}</td>
                         <td className="py-3.5 px-4">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             isSafe ? "bg-emerald-100 text-emerald-800" : isWarning ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
                           }`}>
-                            {s.status || "Unknown"}
+                            {s.status || s.water_status || "Unknown"}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{s.e_coli_count ?? 0} CFU</td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{s.coliform_count ?? 0} MPN</td>
+                        <td className="py-3.5 px-4 text-slate-700 font-medium">{s.e_coli_count ?? (s.e_coli ? "Positive" : "0 CFU")}</td>
+                        <td className="py-3.5 px-4 text-slate-700 font-medium">{s.coliform_count ?? (s.coliform_bacteria ? "Positive" : "0 MPN")}</td>
                       </tr>
                     );
                   })

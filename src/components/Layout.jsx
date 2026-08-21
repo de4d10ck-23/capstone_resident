@@ -19,7 +19,7 @@ const Layout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
 
-  // Fetch unread count
+  // Fetch and sync unread count in real time
   useEffect(() => {
     const fetchUnread = async () => {
       try {
@@ -39,9 +39,28 @@ const Layout = () => {
     };
 
     fetchUnread();
-    const interval = setInterval(fetchUnread, 30000); // Poll every 30s
-    return () => clearInterval(interval);
-  }, [API_URL, token, user?.id, location.pathname]);
+
+    const handleNotificationsUpdate = (e) => {
+      if (e.detail && typeof e.detail.unreadCount === "number") {
+        setUnreadCount(e.detail.unreadCount);
+      } else {
+        fetchUnread();
+      }
+    };
+
+    window.addEventListener("waterwatch_notifications_read", handleNotificationsUpdate);
+    window.addEventListener("waterwatch_notifications_updated", handleNotificationsUpdate);
+    window.addEventListener("storage", fetchUnread);
+
+    const interval = setInterval(fetchUnread, 20000); // Periodic background sync
+
+    return () => {
+      window.removeEventListener("waterwatch_notifications_read", handleNotificationsUpdate);
+      window.removeEventListener("waterwatch_notifications_updated", handleNotificationsUpdate);
+      window.removeEventListener("storage", fetchUnread);
+      clearInterval(interval);
+    };
+  }, [API_URL, token, user?.id]);
 
   const navItems = [
     { to: "/portal/my-barangay", icon: <MapPin size={20} />, label: "My Barangay Overview" },

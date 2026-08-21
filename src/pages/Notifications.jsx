@@ -31,6 +31,17 @@ const Notifications = () => {
 
   const storageKey = `waterwatch_read_notifs_${user?.id || "guest"}`;
 
+  const notifyUnreadChange = (updatedReadIds, count) => {
+    window.dispatchEvent(
+      new CustomEvent("waterwatch_notifications_read", {
+        detail: {
+          readIds: updatedReadIds,
+          unreadCount: count
+        }
+      })
+    );
+  };
+
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -42,6 +53,10 @@ const Notifications = () => {
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setNotifications(data.data);
+        const stored = localStorage.getItem(storageKey);
+        const currentRead = stored ? JSON.parse(stored) : readIds;
+        const remainingUnread = data.data.filter((n) => !currentRead.includes(n.id)).length;
+        notifyUnreadChange(currentRead, remainingUnread);
       }
     } catch (err) {
       console.error("Error fetching notifications:", err);
@@ -55,12 +70,16 @@ const Notifications = () => {
   }, [API_URL, token]);
 
   // Mark single notification as read
-  const handleMarkAsRead = async (id) => {
+  const handleMarkAsRead = async (id, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
     if (readIds.includes(id)) return;
 
     const updated = [...readIds, id];
     setReadIds(updated);
     localStorage.setItem(storageKey, JSON.stringify(updated));
+
+    const remainingUnread = notifications.filter((n) => !updated.includes(n.id)).length;
+    notifyUnreadChange(updated, remainingUnread);
 
     try {
       await fetch(`${API_URL}/notifications/${id}/read`, {
@@ -78,6 +97,8 @@ const Notifications = () => {
     const updated = Array.from(new Set([...readIds, ...allIds]));
     setReadIds(updated);
     localStorage.setItem(storageKey, JSON.stringify(updated));
+
+    notifyUnreadChange(updated, 0);
 
     try {
       await fetch(`${API_URL}/notifications/read-all`, {
@@ -258,10 +279,13 @@ const Notifications = () => {
             return (
               <div
                 key={n.id}
+                onClick={() => {
+                  if (!read) handleMarkAsRead(n.id);
+                }}
                 className={`p-4 sm:p-5 rounded-2xl sm:rounded-3xl border transition-all ${
                   read
                     ? "bg-white/80 border-slate-200/80 opacity-80 hover:opacity-100"
-                    : `${details.bgColor} shadow-md ring-1 ring-blue-500/10`
+                    : `${details.bgColor} shadow-md ring-1 ring-blue-500/10 cursor-pointer hover:shadow-lg`
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -312,7 +336,7 @@ const Notifications = () => {
                   {/* Mark as Read Button */}
                   {!read ? (
                     <button
-                      onClick={() => handleMarkAsRead(n.id)}
+                      onClick={(e) => handleMarkAsRead(n.id, e)}
                       className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all hover:text-blue-900 cursor-pointer flex-shrink-0"
                       title="Mark as read"
                     >
