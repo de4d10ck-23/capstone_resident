@@ -176,9 +176,17 @@ const MyBarangay = () => {
 
         {/* Community Advisories & Notices */}
         <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
-          <div className="flex items-center gap-2">
-            <Bell size={20} className="text-blue-600" />
-            <h2 className="text-lg font-bold text-slate-900">Health Advisories</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell size={20} className="text-blue-600" />
+              <h2 className="text-lg font-bold text-slate-900">Health Advisories</h2>
+            </div>
+            <Link
+              to="/portal/notifications"
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              View All
+            </Link>
           </div>
           <p className="text-xs text-slate-500">Official bulletins from the City Health Office</p>
 

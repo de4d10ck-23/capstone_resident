@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   MapPin, 
@@ -8,16 +8,44 @@ import {
   LogOut,
   Droplets,
   Home,
+  Bell,
   Menu,
   X
 } from 'lucide-react';
 
 const Layout = () => {
-  const { user, logout } = useAuth();
+  const { user, token, API_URL, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const location = useLocation();
+
+  // Fetch unread count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch(`${API_URL}/notifications`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const stored = localStorage.getItem(`waterwatch_read_notifs_${user?.id || "guest"}`);
+          const readIds = stored ? JSON.parse(stored) : [];
+          const unread = data.data.filter((n) => !readIds.includes(n.id)).length;
+          setUnreadCount(unread);
+        }
+      } catch (err) {
+        console.error("Error fetching unread notifications count:", err);
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, [API_URL, token, user?.id, location.pathname]);
 
   const navItems = [
     { to: "/portal/my-barangay", icon: <MapPin size={20} />, label: "My Barangay Overview" },
+    { to: "/portal/notifications", icon: <Bell size={20} />, label: "Advisories & Alerts", badge: unreadCount },
     { to: "/portal/request-inspection", icon: <Search size={20} />, label: "Request Inspection" },
     { to: "/portal/submit-concern", icon: <MessageSquare size={20} />, label: "Submit Concern" },
   ];
@@ -42,7 +70,7 @@ const Layout = () => {
 
         <button
           onClick={() => setMobileOpen(false)}
-          className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
         >
           <X size={20} />
         </button>
@@ -71,8 +99,18 @@ const Layout = () => {
               }`
             }
           >
-            {item.icon}
-            <span>{item.label}</span>
+            <div className="relative">
+              {item.icon}
+              {item.badge > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+              )}
+            </div>
+            <span className="flex-1">{item.label}</span>
+            {item.badge > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white shadow-sm">
+                {item.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -127,15 +165,30 @@ const Layout = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100"
+              className="lg:hidden p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
               aria-label="Open Navigation Menu"
             >
               <Menu size={20} />
             </button>
             <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate">Resident Community Portal</span>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-medium text-slate-500">
+
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Header Notification Bell Icon with Badge */}
+            <Link
+              to="/portal/notifications"
+              className="relative p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors"
+              title="Advisories & Notifications"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-red-500 text-white shadow-sm animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </Link>
+
+            <span className="text-xs font-medium text-slate-500 hidden xs:inline">
               Barangay <span className="font-bold text-slate-800">{user?.barangay}</span>
             </span>
           </div>

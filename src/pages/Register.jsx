@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Lock, Mail, MapPin, ArrowLeft, ShieldCheck, Droplets, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { MAASIN_BARANGAYS as barangayList } from '../constants/barangays';
 
 const Register = () => {
   const { register } = useAuth();
@@ -37,17 +38,6 @@ const Register = () => {
     
     setIsSubmitting(false);
   };
-
-  const barangayList = [
-    "Abgao", "Asuncion", "Bactul I", "Bactul II", "Bilibol", "Batuan",
-    "Canturing", "Combado", "Dongon", "Guadalupe", "Hanginan", "Hantag",
-    "Hinapu Daku", "Hinapu Gamay", "Ibarra", "Isagani", "Laboon", "Lunas",
-    "Mababoy", "Malapoc Norte", "Malapoc Sur", "Mambajao", "Manhilo",
-    "Mantahan", "Maria Clara", "Matin-ao", "Nasaug", "Panan-awan",
-    "Pasay", "Rizal", "San Agustin", "San Isidro", "San Jose", "San Rafael",
-    "Santa Cruz", "Santa Rosa", "Santo Niño", "Santo Rosario", "Sua",
-    "Tagnipa", "Tam-is", "Tawid", "Tigbawan", "Tomoy-tomoy", "Tunga-tunga"
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-cyan-50 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative overflow-hidden font-sans">
