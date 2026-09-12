@@ -282,7 +282,43 @@ const SubmitConcern = () => {
     );
   };
 
+  const updateMapMarker = (latVal, lngVal) => {
+    const lat = parseFloat(latVal);
+    const lng = parseFloat(lngVal);
+    const isValidLat = !isNaN(lat) && lat >= -90 && lat <= 90;
+    const isValidLng = !isNaN(lng) && lng >= -180 && lng <= 180;
+
+    if (isValidLat && isValidLng && marker.current && map.current) {
+      try {
+        marker.current.setLngLat([lng, lat]);
+        map.current.flyTo({ center: [lng, lat] });
+      } catch (err) {
+        console.warn("Could not update map marker position:", err);
+      }
+    }
+  };
+
   const handleManualCoordChange = (field, val) => {
+    // Check if user pasted a coordinate pair like "10.1330, 124.8700"
+    if (typeof val === "string") {
+      const matches = val.match(/[-+]?[0-9]*\.?[0-9]+/g);
+      if (matches && matches.length >= 2) {
+        let n1 = parseFloat(matches[0]);
+        let n2 = parseFloat(matches[1]);
+        if (!isNaN(n1) && !isNaN(n2)) {
+          let lat = n1;
+          let lng = n2;
+          if (Math.abs(n1) > 90 && Math.abs(n2) <= 90) {
+            lat = n2;
+            lng = n1;
+          }
+          setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+          updateMapMarker(lat, lng);
+          return;
+        }
+      }
+    }
+
     const updated = {
       ...formData,
       [field]: val,
@@ -291,10 +327,26 @@ const SubmitConcern = () => {
 
     const lat = parseFloat(field === "latitude" ? val : formData.latitude);
     const lng = parseFloat(field === "longitude" ? val : formData.longitude);
+    updateMapMarker(lat, lng);
+  };
 
-    if (!isNaN(lat) && !isNaN(lng) && marker.current && map.current) {
-      marker.current.setLngLat([lng, lat]);
-      map.current.flyTo({ center: [lng, lat] });
+  const handleCoordPaste = (e) => {
+    const pasteText = e.clipboardData?.getData("text") || "";
+    const matches = pasteText.match(/[-+]?[0-9]*\.?[0-9]+/g);
+    if (matches && matches.length >= 2) {
+      e.preventDefault();
+      let n1 = parseFloat(matches[0]);
+      let n2 = parseFloat(matches[1]);
+      if (!isNaN(n1) && !isNaN(n2)) {
+        let lat = n1;
+        let lng = n2;
+        if (Math.abs(n1) > 90 && Math.abs(n2) <= 90) {
+          lat = n2;
+          lng = n1;
+        }
+        setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+        updateMapMarker(lat, lng);
+      }
     }
   };
 
@@ -545,14 +597,18 @@ const SubmitConcern = () => {
               {/* Coordinate Numeric Inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Latitude (GPS)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                      Latitude (GPS)
+                    </label>
+                    <span className="text-[10px] text-slate-400">Accepts paste (lat, lng)</span>
+                  </div>
                   <input
-                    type="number"
-                    step="0.000001"
+                    type="text"
+                    inputMode="decimal"
                     value={formData.latitude}
                     onChange={(e) => handleManualCoordChange("latitude", e.target.value)}
+                    onPaste={handleCoordPaste}
                     placeholder="10.133000"
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
                     required
@@ -560,14 +616,18 @@ const SubmitConcern = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                    Longitude (GPS)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                      Longitude (GPS)
+                    </label>
+                    <span className="text-[10px] text-slate-400">Accepts paste (lat, lng)</span>
+                  </div>
                   <input
-                    type="number"
-                    step="0.000001"
+                    type="text"
+                    inputMode="decimal"
                     value={formData.longitude}
                     onChange={(e) => handleManualCoordChange("longitude", e.target.value)}
+                    onPaste={handleCoordPaste}
                     placeholder="124.870000"
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
                     required

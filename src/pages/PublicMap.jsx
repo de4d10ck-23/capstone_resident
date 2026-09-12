@@ -1,10 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { Droplets, ShieldCheck, AlertTriangle, XCircle, Search, Filter, Layers, Navigation, Info, MapPin, List, Map as MapIcon } from "lucide-react";
+import {
+  Search,
+  Layers,
+  Navigation,
+  List,
+  Map as MapIcon,
+  X,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_KEY || "pk.eyJ1IjoicmFsZDEyMDEwMiIsImEiOiJjbWttZGNyaWgwY3h3M2xzZmIwZ3VhYnM3In0.xkubwGBDjYnc41XB_7FT1g";
+
+// ============================================================================
+// ZOOM THRESHOLD FOR NAMES & LABELS
+// Change this single number to adjust when water station names appear:
+// ============================================================================
+export const NAME_LABEL_MIN_ZOOM = 18.0;
 
 const PublicMap = () => {
   const mapContainer = useRef(null);
@@ -23,56 +36,26 @@ const PublicMap = () => {
 
   // Fetch water sources from backend API
   useEffect(() => {
-    const fetchLocations = async () => {
+    const fetchMapData = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_URL}/water-locations`);
-        const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          setLocations(data.data);
+        const locRes = await fetch(`${API_URL}/water-locations`);
+        const locData = await locRes.json();
+
+        if (locData.success && Array.isArray(locData.data)) {
+          setLocations(locData.data);
         }
       } catch (err) {
-        console.error("Error fetching water sources for public map:", err);
+        console.error("Error fetching data for public map:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchLocations();
+    fetchMapData();
   }, [API_URL]);
 
-  // Initialize Mapbox Map
-  useEffect(() => {
-    if (!mapContainer.current) return;
-
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: mapStyle,
-      center: [124.8700, 10.1330], // Maasin City coordinates
-      zoom: 12.5,
-      pitch: 20,
-    });
-
-    map.current.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
-    map.current.addControl(new mapboxgl.FullscreenControl(), "top-right");
-    map.current.addControl(new mapboxgl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: true,
-      showUserHeading: true
-    }), "top-right");
-
-    return () => {
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
-  }, [mapStyle]);
-
-  // Add / Update Mapbox Markers when locations or filters change
-  useEffect(() => {
+  const renderMarkers = () => {
     if (!map.current) return;
 
     // Clear existing markers
@@ -99,23 +82,25 @@ const PublicMap = () => {
 
       // Custom marker DOM element
       const el = document.createElement("div");
-      el.className = "custom-water-marker cursor-pointer group";
-      el.style.width = "34px";
-      el.style.height = "34px";
+      el.className = "custom-water-marker cursor-pointer group flex flex-col items-center pointer-events-auto";
       el.innerHTML = `
-        <div class="transition-transform duration-200 ease-out group-hover:scale-125 origin-center" style="background-color: ${color}; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.35);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <div class="transition-transform duration-200 ease-out group-hover:scale-125 origin-center flex-shrink-0" style="background-color: ${color}; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.35);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
           </svg>
         </div>
+        <div class="station-zoom-label hidden pointer-events-none mt-1 px-2 py-0.5 rounded-md bg-white/95 text-slate-900 text-[10px] font-bold shadow-md whitespace-nowrap border border-slate-300 text-center max-w-[160px] truncate">
+          ${loc.name}
+        </div>
       `;
 
-      el.addEventListener("click", () => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
         setSelectedLocation(loc);
         if (map.current) {
           map.current.flyTo({
             center: [loc.longitude, loc.latitude],
-            zoom: 15.5,
+            zoom: 18,
             duration: 1000,
           });
         }
@@ -127,6 +112,80 @@ const PublicMap = () => {
 
       markersRef.current.push(marker);
     });
+  };
+
+  const renderMarkersRef = useRef(renderMarkers);
+  renderMarkersRef.current = renderMarkers;
+
+  // Initialize Mapbox Map
+  useEffect(() => {
+    if (!mapContainer.current) return;
+
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+
+    const mapInstance = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: mapStyle,
+      center: [124.8200, 10.1570], // Centered on Batuan water sources
+      zoom: 14.2,
+      pitch: 20,
+    });
+
+    mapInstance.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    mapInstance.addControl(new mapboxgl.FullscreenControl(), "top-right");
+    mapInstance.addControl(new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: true
+    }), "top-right");
+
+    const checkZoomLabels = () => {
+      if (!mapContainer.current) return;
+      if (mapInstance.getZoom() >= NAME_LABEL_MIN_ZOOM) {
+        mapContainer.current.classList.add("show-zoom-labels");
+      } else {
+        mapContainer.current.classList.remove("show-zoom-labels");
+      }
+    };
+
+    mapInstance.on("zoom", checkZoomLabels);
+    mapInstance.on("load", checkZoomLabels);
+
+    mapInstance.on("style.load", () => {
+      checkZoomLabels();
+      renderMarkersRef.current?.();
+    });
+
+    map.current = mapInstance;
+
+    return () => {
+      mapInstance.remove();
+      map.current = null;
+    };
+  }, []);
+
+  const currentStyleRef = useRef(mapStyle);
+
+  // Update map style without tearing down the map instance
+  useEffect(() => {
+    if (!map.current) return;
+    if (currentStyleRef.current !== mapStyle) {
+      currentStyleRef.current = mapStyle;
+      map.current.setStyle(mapStyle, { diff: false });
+
+      const reAddLayers = () => {
+        if (!map.current) return;
+        renderMarkers();
+      };
+
+      map.current.once("style.load", reAddLayers);
+      map.current.once("idle", reAddLayers);
+    }
+  }, [mapStyle]);
+
+  // Add / Update Mapbox Markers when locations or filters change
+  useEffect(() => {
+    renderMarkers();
   }, [locations, searchQuery, selectedBarangay, selectedStatus]);
 
   // Unique barangays for filter dropdown
@@ -179,7 +238,7 @@ const PublicMap = () => {
           <div>
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Public Water Map</span>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Maasin City Sources</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Explore real-time tested drinking water stations</p>
+            <p className="text-xs text-slate-500 mt-0.5">Explore real-time tested drinking water stations & sanitary safety</p>
           </div>
 
           {/* Search input */}
@@ -243,69 +302,60 @@ const PublicMap = () => {
                 key={loc.id}
                 onClick={() => {
                   setSelectedLocation(loc);
-                  setMobileTab("map"); // Switch back to map on mobile when station tapped
+                  if (mobileTab === "list") setMobileTab("map");
                   if (map.current && loc.longitude && loc.latitude) {
                     map.current.flyTo({
                       center: [loc.longitude, loc.latitude],
-                      zoom: 15.5,
-                      duration: 1000
+                      zoom: 18,
+                      duration: 1000,
                     });
                   }
                 }}
-                className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer ${
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                   isSelected
-                    ? "bg-blue-50/80 border-blue-500 shadow-md ring-2 ring-blue-500/20"
-                    : "bg-white border-slate-200/80 hover:border-blue-300 hover:shadow-sm"
+                    ? "border-blue-500 bg-blue-50/50 shadow-md ring-2 ring-blue-500/20"
+                    : "border-slate-100 bg-white hover:border-slate-300 hover:shadow-xs"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">{loc.name}</h3>
-                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                      <MapPin size={12} className="text-slate-400" />
-                      <span>Brgy. {loc.barangay}</span>
-                    </p>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-bold text-slate-800 leading-tight">{loc.name}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Barangay {loc.barangay}</p>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    isSafe ? "bg-emerald-100 text-emerald-800" : isWarning ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
-                  }`}>
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${
+                      isSafe
+                        ? "bg-emerald-100 text-emerald-700"
+                        : isWarning
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-rose-100 text-rose-700"
+                    }`}
+                  >
                     {loc.status || "Unknown"}
                   </span>
                 </div>
-
-                <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                  <div>Type: <span className="font-semibold text-slate-800 capitalize">{loc.source_type || "Well"}</span></div>
-                  <div>E. Coli: <span className="font-semibold text-slate-800">{loc.e_coli_count ?? 0} CFU</span></div>
+                <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-50 pt-2">
+                  <span>Coliform: {loc.coliform_count ?? 0}</span>
+                  <span>E. Coli: {loc.e_coli_count ?? 0}</span>
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* Legend */}
-        <div className="p-3.5 border-t border-slate-200 bg-slate-50 text-xs text-slate-600 flex items-center justify-around flex-shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-            <span>Safe</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-            <span>Warning</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-            <span>Contaminated</span>
-          </div>
-        </div>
       </div>
 
-      {/* Map Canvas Container */}
+      {/* Map Canvas Area */}
       <div className={`flex-1 relative ${mobileTab === "list" ? "hidden md:block" : "block"}`}>
+        <style>{`
+          .show-zoom-labels .station-zoom-label {
+            display: block !important;
+          }
+        `}</style>
         <div ref={mapContainer} className="w-full h-full" />
 
-        {/* Map Style Selector Overlay */}
-        <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-md px-2 py-1.5 rounded-2xl shadow-lg border border-slate-200/80 flex items-center gap-1 text-xs font-sans">
-          <div className="px-1 text-slate-700">
+        {/* Map Overlays: Styles Selector */}
+        <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-md px-2.5 py-2 rounded-2xl shadow-xl border border-slate-200/80 flex flex-wrap items-center gap-1.5 text-xs">
+          <div className="px-1 text-slate-400">
             <Layers size={16} />
           </div>
           <button
@@ -353,7 +403,7 @@ const PublicMap = () => {
                 onClick={() => setSelectedLocation(null)}
                 className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
