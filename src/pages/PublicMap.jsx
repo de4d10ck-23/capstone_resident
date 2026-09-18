@@ -8,16 +8,23 @@ import {
   List,
   Map as MapIcon,
   X,
+  Flame,
+  Droplets,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_KEY || "pk.eyJ1IjoicmFsZDEyMDEwMiIsImEiOiJjbWttZGNyaWgwY3h3M2xzZmIwZ3VhYnM3In0.xkubwGBDjYnc41XB_7FT1g";
 
 // ============================================================================
-// ZOOM THRESHOLD FOR NAMES & LABELS
-// Change this single number to adjust when water station names appear:
+// ZOOM SETTINGS
+// Adjust these numbers to customize zoom behavior:
+// - NAME_LABEL_MIN_ZOOM: When water station names appear
+// - DOUBLE_CLICK_ZOOM: Target zoom level when double-clicking a water source
 // ============================================================================
 export const NAME_LABEL_MIN_ZOOM = 18.0;
+export const DOUBLE_CLICK_ZOOM = 18.0;
 
 const PublicMap = () => {
   const mapContainer = useRef(null);
@@ -34,16 +41,43 @@ const PublicMap = () => {
   const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/streets-v12");
   const [mobileTab, setMobileTab] = useState("map"); // 'map' or 'list'
 
-  // Fetch water sources from backend API
+  // Model-driven Heatmap States
+  const [showHazardHeatmap, setShowHazardHeatmap] = useState(false);
+  const [showWaterHeatmap, setShowWaterHeatmap] = useState(false);
+  const [hazardHeatmapData, setHazardHeatmapData] = useState(null);
+  const [waterHeatmapData, setWaterHeatmapData] = useState(null);
+  const [heatmapMeta, setHeatmapMeta] = useState(null);
+
+  const showHazardHeatmapRef = useRef(showHazardHeatmap);
+  showHazardHeatmapRef.current = showHazardHeatmap;
+  const showWaterHeatmapRef = useRef(showWaterHeatmap);
+  showWaterHeatmapRef.current = showWaterHeatmap;
+  const hazardHeatmapDataRef = useRef(hazardHeatmapData);
+  hazardHeatmapDataRef.current = hazardHeatmapData;
+  const waterHeatmapDataRef = useRef(waterHeatmapData);
+  waterHeatmapDataRef.current = waterHeatmapData;
+
+  // Fetch water sources and model heatmaps from backend API
   useEffect(() => {
     const fetchMapData = async () => {
       try {
         setLoading(true);
-        const locRes = await fetch(`${API_URL}/water-locations`);
+        const [locRes, heatRes] = await Promise.all([
+          fetch(`${API_URL}/water-locations`),
+          fetch(`${API_URL}/forecast/heatmaps`),
+        ]);
         const locData = await locRes.json();
+        const heatData = await heatRes.json();
 
         if (locData.success && Array.isArray(locData.data)) {
           setLocations(locData.data);
+        }
+        if (heatData.success && heatData.data) {
+          setHazardHeatmapData(heatData.data.hazard_heatmap);
+          hazardHeatmapDataRef.current = heatData.data.hazard_heatmap;
+          setWaterHeatmapData(heatData.data.water_contamination_heatmap);
+          waterHeatmapDataRef.current = heatData.data.water_contamination_heatmap;
+          setHeatmapMeta(heatData.data);
         }
       } catch (err) {
         console.error("Error fetching data for public map:", err);
@@ -55,12 +89,101 @@ const PublicMap = () => {
     fetchMapData();
   }, [API_URL]);
 
+  // Dual Heatmap Layer Management
+  const renderHeatmaps = () => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+
+    const hData = hazardHeatmapDataRef.current || hazardHeatmapData;
+    const wData = waterHeatmapDataRef.current || waterHeatmapData;
+    const isHazardHeatActive = showHazardHeatmapRef.current ?? showHazardHeatmap;
+    const isWaterHeatActive = showWaterHeatmapRef.current ?? showWaterHeatmap;
+
+    // 1. Hazard Heatmap Layer
+    const hazardSourceId = "public-hazard-heatmap-source";
+    const hazardLayerId = "public-hazard-risk-heat";
+
+    if (hData && hData.features && hData.features.length > 0) {
+      if (map.current.getSource(hazardSourceId)) {
+        map.current.getSource(hazardSourceId).setData(hData);
+      } else {
+        map.current.addSource(hazardSourceId, { type: "geojson", data: hData });
+        map.current.addLayer({
+          id: hazardLayerId,
+          type: "heatmap",
+          source: hazardSourceId,
+          layout: { visibility: isHazardHeatActive ? "visible" : "none" },
+          paint: {
+            "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0.1, 0.5, 0.6, 1.0, 1.0],
+            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.8, 14, 1.8],
+            "heatmap-color": [
+              "interpolate",
+              ["linear"],
+              ["heatmap-density"],
+              0, "rgba(255, 255, 255, 0)",
+              0.15, "rgba(251, 191, 36, 0.4)",
+              0.4, "rgba(245, 158, 11, 0.7)",
+              0.7, "rgba(239, 68, 68, 0.85)",
+              1.0, "rgba(185, 28, 28, 0.95)",
+            ],
+            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 8, 14, 32],
+            "heatmap-opacity": 0.82,
+          },
+        });
+      }
+
+      if (map.current.getLayer(hazardLayerId)) {
+        map.current.setLayoutProperty(hazardLayerId, "visibility", isHazardHeatActive ? "visible" : "none");
+      }
+    }
+
+    // 2. Water Contamination Heatmap Layer
+    const waterSourceId = "public-water-heatmap-source";
+    const waterLayerId = "public-water-contamination-heat";
+
+    if (wData && wData.features && wData.features.length > 0) {
+      if (map.current.getSource(waterSourceId)) {
+        map.current.getSource(waterSourceId).setData(wData);
+      } else {
+        map.current.addSource(waterSourceId, { type: "geojson", data: wData });
+        map.current.addLayer({
+          id: waterLayerId,
+          type: "heatmap",
+          source: waterSourceId,
+          layout: { visibility: isWaterHeatActive ? "visible" : "none" },
+          paint: {
+            "heatmap-weight": ["interpolate", ["linear"], ["get", "weight"], 0, 0, 0.3, 0.35, 0.65, 0.75, 1.0, 1.0],
+            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 0.9, 14, 2.0],
+            "heatmap-color": [
+              "interpolate",
+              ["linear"],
+              ["heatmap-density"],
+              0, "rgba(0, 0, 255, 0)",
+              0.15, "rgba(59, 130, 246, 0.35)",
+              0.35, "rgba(234, 179, 8, 0.65)",
+              0.65, "rgba(249, 115, 22, 0.85)",
+              1.0, "rgba(220, 38, 38, 0.95)",
+            ],
+            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 10, 14, 36],
+            "heatmap-opacity": 0.82,
+          },
+        });
+      }
+
+      if (map.current.getLayer(waterLayerId)) {
+        map.current.setLayoutProperty(waterLayerId, "visibility", isWaterHeatActive ? "visible" : "none");
+      }
+    }
+  };
+
   const renderMarkers = () => {
     if (!map.current) return;
 
     // Clear existing markers
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
+
+    // When Contaminated Water Sources Heatmap is active, hide all discrete water station pins
+    if (showWaterHeatmapRef.current ?? showWaterHeatmap) return;
 
     // Filter locations
     const filtered = locations.filter((loc) => {
@@ -94,13 +217,21 @@ const PublicMap = () => {
         </div>
       `;
 
+      // Single-click: Show details
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        setSelectedLocation(loc);
+      });
+
+      // Double-click: Show details and zoom in using configured value
+      el.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
         setSelectedLocation(loc);
         if (map.current) {
           map.current.flyTo({
             center: [loc.longitude, loc.latitude],
-            zoom: 18,
+            zoom: DOUBLE_CLICK_ZOOM,
             duration: 1000,
           });
         }
@@ -175,18 +306,27 @@ const PublicMap = () => {
 
       const reAddLayers = () => {
         if (!map.current) return;
+        renderHeatmaps();
         renderMarkers();
       };
 
       map.current.once("style.load", reAddLayers);
       map.current.once("idle", reAddLayers);
     }
-  }, [mapStyle]);
+  }, [mapStyle, showHazardHeatmap, showWaterHeatmap]);
+
+  // Sync dual model-driven heatmaps
+  useEffect(() => {
+    if (map.current && map.current.isStyleLoaded()) {
+      renderHeatmaps();
+      renderMarkers();
+    }
+  }, [showHazardHeatmap, showWaterHeatmap, hazardHeatmapData, waterHeatmapData]);
 
   // Add / Update Mapbox Markers when locations or filters change
   useEffect(() => {
     renderMarkers();
-  }, [locations, searchQuery, selectedBarangay, selectedStatus]);
+  }, [locations, searchQuery, selectedBarangay, selectedStatus, showWaterHeatmap]);
 
   // Unique barangays for filter dropdown
   const barangayOptions = Array.from(
@@ -388,7 +528,118 @@ const PublicMap = () => {
           >
             Light
           </button>
+
+          {/* Divider */}
+          <div className="h-4 w-[1px] bg-slate-200 mx-0.5 hidden sm:block" />
+
+          {/* Hazard Heatmap Toggle */}
+          <button
+            onClick={() => {
+              const next = !showHazardHeatmap;
+              setShowHazardHeatmap(next);
+              showHazardHeatmapRef.current = next;
+              renderHeatmaps();
+            }}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              showHazardHeatmap
+                ? "bg-amber-500 text-white shadow-sm"
+                : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
+            }`}
+            title="Toggle Continuous Hazard Heatmap"
+          >
+            <Flame size={13} className={showHazardHeatmap ? "text-white" : "text-amber-500"} />
+            <span>Hazard Heatmap</span>
+            <span
+              className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                showHazardHeatmap ? "bg-amber-700 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {showHazardHeatmap ? "ON" : "OFF"}
+            </span>
+          </button>
+
+          {/* Water Contamination Heatmap Toggle */}
+          <button
+            onClick={() => {
+              const next = !showWaterHeatmap;
+              setShowWaterHeatmap(next);
+              showWaterHeatmapRef.current = next;
+              renderHeatmaps();
+              renderMarkers();
+            }}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              showWaterHeatmap
+                ? "bg-rose-600 text-white shadow-sm"
+                : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
+            }`}
+            title="Toggle Contamination Heatmap (Hides discrete water pins)"
+          >
+            <Droplets size={13} className={showWaterHeatmap ? "text-white" : "text-rose-500"} />
+            <span>Contamination Heatmap</span>
+            <span
+              className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                showWaterHeatmap ? "bg-rose-800 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {showWaterHeatmap ? "ON" : "OFF"}
+            </span>
+          </button>
         </div>
+
+        {/* Active Heatmap Legend & Model Status Badge */}
+        {(showHazardHeatmap || showWaterHeatmap) && (
+          <div className="absolute bottom-4 left-4 z-20 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl shadow-xl border border-slate-200/90 max-w-[280px] sm:max-w-xs text-xs animate-fade-in space-y-2.5">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
+              <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1.5">
+                <Flame size={13} className="text-amber-500" />
+                Continuous Heatmap View
+              </span>
+              <span className="text-[9px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Hourly Model
+              </span>
+            </div>
+
+            {showHazardHeatmap && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                  <span>Hazard Proximity Dispersion</span>
+                  <span className="text-amber-600 text-[9px] font-bold">Shapes Hidden</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gradient-to-r from-amber-300 via-orange-500 to-red-700" />
+                <div className="flex justify-between text-[9px] text-slate-400 font-medium">
+                  <span>Low Buffer</span>
+                  <span>Moderate</span>
+                  <span>Critical Risk</span>
+                </div>
+              </div>
+            )}
+
+            {showWaterHeatmap && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] font-semibold text-slate-700">
+                  <span>Water Contamination Density</span>
+                  <span className="text-rose-600 text-[9px] font-bold">Pins Hidden</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-gradient-to-r from-blue-400 via-yellow-400 via-orange-500 to-red-600" />
+                <div className="flex justify-between text-[9px] text-slate-400 font-medium">
+                  <span>Potable</span>
+                  <span>Warning</span>
+                  <span>Contaminated</span>
+                </div>
+              </div>
+            )}
+
+            {heatmapMeta?.last_updated && (
+              <div className="text-[9px] text-slate-400 pt-1 border-t border-slate-100 flex justify-between items-center">
+                <span>Model evaluated:</span>
+                <span className="font-semibold text-slate-600">
+                  {new Date(heatmapMeta.last_updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Selected Station Details Floating Card */}
         {selectedLocation && (
@@ -426,6 +677,14 @@ const PublicMap = () => {
                   {selectedLocation.latitude?.toFixed(4)}, {selectedLocation.longitude?.toFixed(4)}
                 </span>
               </div>
+              {selectedLocation.sample_date && (
+                <div className="flex justify-between pt-1 border-t border-slate-100">
+                  <span className="text-slate-500">Test Date & Time:</span>
+                  <span className="font-mono text-slate-800 font-medium">
+                    {selectedLocation.sample_date} {selectedLocation.sample_time ? `• ${selectedLocation.sample_time}` : ""}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="pt-2">
