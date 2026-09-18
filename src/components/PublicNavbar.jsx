@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, Link } from 'react-router-dom';
-import { Map, LogIn, UserPlus, Menu, X, Home, Compass } from 'lucide-react';
+import { Map, LogIn, UserPlus, Menu, X, Home, Compass, Smartphone, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import usePushNotifications from '../hooks/usePushNotifications';
 
 const PublicNavbar = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { canInstall, isStandalone, promptInstall } = usePushNotifications();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -51,6 +53,16 @@ const PublicNavbar = () => {
             <Map size={16} />
             <span>Public Map</span>
           </NavLink>
+
+          {!isStandalone && canInstall && (
+            <button
+              onClick={promptInstall}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-blue-200 text-blue-900 bg-blue-50 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer"
+            >
+              <Download size={14} />
+              <span>Install App</span>
+            </button>
+          )}
           
           {user ? (
             <Link
@@ -81,6 +93,17 @@ const PublicNavbar = () => {
 
         {/* Mobile Hamburger Toggle Button */}
         <div className="flex items-center gap-2 md:hidden">
+          {!isStandalone && (
+            <button
+              onClick={promptInstall}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-sm"
+              aria-label="Install App"
+            >
+              <Download size={13} />
+              <span>Install</span>
+            </button>
+          )}
+
           {user ? (
             <Link
               to="/portal"
@@ -135,6 +158,19 @@ const PublicNavbar = () => {
             <Map size={18} />
             <span>Public Water Map</span>
           </NavLink>
+
+          {!isStandalone && (
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                promptInstall();
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-blue-900 to-cyan-800 text-white text-sm font-bold shadow-md cursor-pointer"
+            >
+              <Smartphone size={16} />
+              <span>Install Mobile App</span>
+            </button>
+          )}
 
           {!user && (
             <div className="pt-2 border-t border-slate-100 flex gap-3">

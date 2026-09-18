@@ -3,8 +3,28 @@ import { useNavigate, Link } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay } from "swiper/modules";
 import { motion } from "framer-motion";
-import { Droplets, ShieldCheck, Users, MapPin, ArrowRight, Activity, CheckCircle, Search } from "lucide-react";
+import { 
+  Droplets, 
+  ShieldCheck, 
+  Users, 
+  MapPin, 
+  ArrowRight, 
+  Activity, 
+  CheckCircle, 
+  Search,
+  Smartphone,
+  Download,
+  Share2,
+  PlusSquare,
+  X,
+  Bell,
+  Zap,
+  Check,
+  ExternalLink,
+  ChevronRight
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import usePushNotifications from "../hooks/usePushNotifications";
 
 // Import Swiper styles
 import "swiper/css";
@@ -14,6 +34,28 @@ const Home = () => {
   const [scrolled, setScrolled] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // PWA Mobile Install Hook
+  const { canInstall, isStandalone, isIOS, isMobile, promptInstall } = usePushNotifications();
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [guideTab, setGuideTab] = useState(isIOS ? "ios" : "android");
+
+  // Keep guide tab synced if device is detected
+  useEffect(() => {
+    if (isIOS) setGuideTab("ios");
+    else setGuideTab("android");
+  }, [isIOS]);
+
+  const handleInstallClick = async () => {
+    if (canInstall) {
+      const outcome = await promptInstall();
+      if (!outcome) {
+        setShowInstallGuide(true);
+      }
+    } else {
+      setShowInstallGuide(true);
+    }
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -175,7 +217,7 @@ const Home = () => {
               </motion.div>
 
               {/* Action Buttons */}
-              <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row gap-3 pt-2">
+              <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row flex-wrap gap-3 pt-2">
                 <Link
                   to="/public-map"
                   className="inline-flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 text-white px-7 py-3.5 rounded-full text-sm sm:text-base font-semibold transition-all shadow-lg hover:shadow-blue-900/25 hover:-translate-y-0.5 w-full sm:w-auto"
@@ -183,6 +225,17 @@ const Home = () => {
                   <MapPin size={18} />
                   <span>View Public Map</span>
                 </Link>
+
+                {!isStandalone && (
+                  <button
+                    type="button"
+                    onClick={handleInstallClick}
+                    className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white px-6 py-3.5 rounded-full text-sm sm:text-base font-bold transition-all shadow-lg shadow-cyan-600/25 hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
+                  >
+                    <Smartphone size={18} className="text-cyan-200" />
+                    <span>Install Mobile App</span>
+                  </button>
+                )}
 
                 {user ? (
                   <Link
@@ -226,6 +279,65 @@ const Home = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile App Install Feature Section (Target: Mobile devices, shown if not yet installed) */}
+      {!isStandalone && (
+        <div className="py-12 bg-gradient-to-b from-blue-50/50 via-white to-slate-50 border-t border-blue-100/60">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 p-7 sm:p-12 text-white shadow-2xl border border-blue-800/40">
+              {/* Background ambient lighting */}
+              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-8">
+                <div className="space-y-4 max-w-2xl text-center lg:text-left">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-400/15 border border-cyan-400/30 text-cyan-300 text-xs font-bold uppercase tracking-wider">
+                    <Smartphone size={14} />
+                    <span>Mobile App Available</span>
+                  </div>
+
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                    Install WaterWatch on Your Phone
+                  </h2>
+
+                  <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                    Install WaterWatch directly onto your mobile home screen. Enjoy fast 1-tap launching, full-screen map navigation, instant community health advisories, and offline access to emergency hotline numbers.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                    <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10 text-xs text-white">
+                      <Zap size={16} className="text-cyan-400 flex-shrink-0" />
+                      <span>Instant 1-Tap Launch</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10 text-xs text-white">
+                      <Bell size={16} className="text-amber-400 flex-shrink-0" />
+                      <span>Real-Time Push Alerts</span>
+                    </div>
+                    <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/10 text-xs text-white">
+                      <ShieldCheck size={16} className="text-emerald-400 flex-shrink-0" />
+                      <span>Works When Offline</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center gap-3 w-full sm:w-auto flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleInstallClick}
+                    className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-cyan-500/25 transition-all flex items-center justify-center gap-3 cursor-pointer hover:scale-105 active:scale-95"
+                  >
+                    <Download size={20} className="text-slate-950" />
+                    <span>Install on Mobile</span>
+                  </button>
+                  <span className="text-[11px] text-slate-400 text-center">
+                    Android & iPhone Safari • No app store needed
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Feature Highlights Grid */}
       <div className="py-20 bg-slate-50 border-t border-slate-200/60">
@@ -364,6 +476,121 @@ const Home = () => {
           </div>
         </div>
       </footer>
+
+      {/* Mobile PWA Installation Guide Modal */}
+      {showInstallGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-5 animate-scale-in">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowInstallGuide(false)}
+              className="absolute top-5 right-5 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3.5 pr-8">
+              <div className="w-12 h-12 rounded-2xl bg-blue-100/80 text-blue-900 flex items-center justify-center flex-shrink-0">
+                <Smartphone size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 leading-tight">Install Mobile App</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Follow these quick steps to add WaterWatch to your phone</p>
+              </div>
+            </div>
+
+            {/* OS Switcher Tabs */}
+            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setGuideTab("android")}
+                className={`py-2 rounded-xl transition-all ${
+                  guideTab === "android"
+                    ? "bg-white text-blue-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Android / Chrome
+              </button>
+              <button
+                type="button"
+                onClick={() => setGuideTab("ios")}
+                className={`py-2 rounded-xl transition-all ${
+                  guideTab === "ios"
+                    ? "bg-white text-blue-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                iPhone / Safari
+              </button>
+            </div>
+
+            {/* Step-by-Step Instructions */}
+            {guideTab === "ios" ? (
+              <div className="space-y-3.5 text-xs sm:text-sm text-slate-700 bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">1</span>
+                  <p className="leading-snug">
+                    Open this page in <strong>Apple Safari</strong> browser on your iPhone.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">2</span>
+                  <p className="leading-snug">
+                    Tap the <strong>Share button</strong> (<span className="inline-block px-1.5 py-0.5 bg-white border border-slate-200 rounded font-semibold text-blue-900">📤</span>) in Safari's bottom toolbar.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">3</span>
+                  <p className="leading-snug">
+                    Scroll down and tap <strong>"Add to Home Screen"</strong> (<span className="inline-block px-1.5 py-0.5 bg-white border border-slate-200 rounded font-semibold text-blue-900">➕</span>).
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">4</span>
+                  <p className="leading-snug">
+                    Tap <strong>"Add"</strong> in the top-right corner. The WaterWatch icon will now appear on your home screen!
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3.5 text-xs sm:text-sm text-slate-700 bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">1</span>
+                  <p className="leading-snug">
+                    Tap the <strong>three dots menu (⋮)</strong> in the top-right corner of Google Chrome.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">2</span>
+                  <p className="leading-snug">
+                    Select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong> from the menu options.
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-6 h-6 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-xs flex-shrink-0">3</span>
+                  <p className="leading-snug">
+                    Tap <strong>"Install"</strong> to confirm. WaterWatch is now ready to open as a standalone app!
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Dismiss Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowInstallGuide(false)}
+                className="w-full py-3 rounded-2xl bg-blue-900 hover:bg-blue-850 text-white font-bold text-sm shadow-md transition-all text-center cursor-pointer"
+              >
+                Got It, Thanks!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };

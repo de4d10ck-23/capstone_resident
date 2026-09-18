@@ -10,14 +10,19 @@ import {
   Home,
   Bell,
   Menu,
-  X
+  X,
+  Smartphone,
+  Download,
 } from 'lucide-react';
+import usePushNotifications from '../hooks/usePushNotifications';
 
 const Layout = () => {
   const { user, token, API_URL, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
+
+  const { canInstall, promptInstall, isStandalone } = usePushNotifications(API_URL, user);
 
   // Fetch and sync unread count in real time
   useEffect(() => {
@@ -145,6 +150,27 @@ const Layout = () => {
           </div>
         </div>
 
+        {canInstall && (
+          <div className="mx-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
+                <Smartphone size={14} />
+              </div>
+              <span className="text-[11px] font-bold text-slate-800">Install WaterWatch App</span>
+            </div>
+            <p className="text-[10px] text-slate-600 leading-tight">
+              Add to your home screen for quick offline access and real-time alerts.
+            </p>
+            <button
+              onClick={promptInstall}
+              className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Download size={13} />
+              <span>Install to Device</span>
+            </button>
+          </div>
+        )}
+
         <button 
           onClick={logout}
           className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 text-slate-700 text-sm font-medium transition-all shadow-sm cursor-pointer"
@@ -193,6 +219,18 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
+            {/* Install App Button in Header (when installable) */}
+            {canInstall && (
+              <button
+                onClick={promptInstall}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-800 hover:to-cyan-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                title="Install WaterWatch on your device"
+              >
+                <Smartphone size={14} />
+                <span>Install App</span>
+              </button>
+            )}
+
             {/* Header Notification Bell Icon with Badge */}
             <Link
               to="/portal/notifications"
