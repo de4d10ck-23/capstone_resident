@@ -15,7 +15,8 @@ import {
   Clock,
   ExternalLink,
   RefreshCw,
-  Eye
+  Eye,
+  Trash2
 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -93,6 +94,33 @@ const SubmitConcern = () => {
       console.error("Error fetching my resident reports:", err);
     } finally {
       setLoadingReports(false);
+    }
+  };
+
+  const [deletingId, setDeletingId] = useState(null);
+
+  // Delete a pending concern submitted by the resident
+  const handleDeleteConcern = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this pending concern?")) return;
+    try {
+      setDeletingId(id);
+      const res = await fetch(`${API_URL}/resident-reports/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.detail || data.message || "Failed to delete concern");
+      }
+      setMyReports((prev) => prev.filter((r) => r.id !== id));
+      if (detailReport?.id === id) {
+        setDetailReport(null);
+      }
+    } catch (err) {
+      console.error("Error deleting concern:", err);
+      alert(err.message || "Failed to delete concern.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -795,19 +823,6 @@ const SubmitConcern = () => {
                       <span>Brgy. {r.barangay}</span>
                       <span>•</span>
                       <span>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}</span>
-                      {photo && (
-                        <>
-                          <span>•</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProof(photo)}
-                            className="text-blue-600 hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Eye size={12} />
-                            <span>View Proof</span>
-                          </button>
-                        </>
-                      )}
                       {r.reason && (
                         <>
                           <span>•</span>
@@ -827,6 +842,19 @@ const SubmitConcern = () => {
                       <Eye size={12} />
                       <span>View</span>
                     </button>
+
+                    {isPending && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteConcern(r.id)}
+                        disabled={deletingId === r.id}
+                        className="px-3 py-1 rounded-xl bg-white hover:bg-red-50 text-red-600 border border-slate-200 hover:border-red-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
+                        title="Delete this pending concern"
+                      >
+                        <Trash2 size={12} />
+                        <span>{deletingId === r.id ? "Deleting..." : "Delete"}</span>
+                      </button>
+                    )}
 
                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
                       isPending
@@ -863,6 +891,7 @@ const SubmitConcern = () => {
         <ReportDetailModal
           report={detailReport}
           onClose={() => setDetailReport(null)}
+          onDelete={handleDeleteConcern}
         />
       )}
 

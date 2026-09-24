@@ -8,7 +8,8 @@ import {
   X, 
   Image as ImageIcon,
   Compass,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -36,7 +37,7 @@ const getDisplayDescription = (r) => {
   return "";
 };
 
-const ReportDetailModal = ({ report, onClose }) => {
+const ReportDetailModal = ({ report, onClose, onDelete }) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const marker = useRef(null);
@@ -259,7 +260,19 @@ const ReportDetailModal = ({ report, onClose }) => {
         </div>
 
         {/* Modal Footer */}
-        <div className="pt-4 border-t border-slate-100 flex justify-end">
+        <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+          {(!report.status || report.status === "pending") && onDelete ? (
+            <button
+              type="button"
+              onClick={() => onDelete(report.id)}
+              className="px-4 py-2 rounded-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 size={13} />
+              <span>Delete Concern</span>
+            </button>
+          ) : (
+            <div />
+          )}
           <button
             type="button"
             onClick={onClose}

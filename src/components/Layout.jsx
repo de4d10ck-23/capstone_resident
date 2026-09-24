@@ -218,17 +218,14 @@ const Layout = () => {
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* Install App Button in Header (when installable) */}
-            {!isInstalled && !isStandalone && canInstall && (
-              <button
-                onClick={promptInstall}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-800 hover:to-cyan-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
-                title="Install WaterWatch on your device"
-              >
-                <Smartphone size={14} />
-                <span>Install App</span>
-              </button>
-            )}
+            {/* View Public Map Button */}
+            <Link
+              to="/public-map"
+              className="inline-flex items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-white px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm hover:shadow hover:-translate-y-0.5"
+            >
+              <MapPin size={14} />
+              <span>View Public Map</span>
+            </Link>
 
             {/* Header Notification Bell Icon with Badge */}
             <Link
