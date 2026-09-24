@@ -37,6 +37,7 @@ const Notifications = () => {
   const { 
     canInstall, 
     isStandalone, 
+    isInstalled,
     isIOS, 
     isMobile, 
     promptInstall, 
@@ -296,7 +297,7 @@ const Notifications = () => {
       )}
 
       {/* Install Mobile App Prompt Card (Target: Mobile, Only if not installed yet) */}
-      {!isStandalone && (
+      {!isStandalone && !isInstalled && (
         <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-blue-700/50 animate-fade-in">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-md text-cyan-300 border border-white/10 flex-shrink-0">

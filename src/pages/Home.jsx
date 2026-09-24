@@ -36,7 +36,7 @@ const Home = () => {
   const navigate = useNavigate();
 
   // PWA Mobile Install Hook
-  const { canInstall, isStandalone, isIOS, isMobile, promptInstall } = usePushNotifications();
+  const { canInstall, isStandalone, isInstalled, isIOS, isMobile, promptInstall } = usePushNotifications();
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [guideTab, setGuideTab] = useState(isIOS ? "ios" : "android");
 
@@ -226,7 +226,7 @@ const Home = () => {
                   <span>View Public Map</span>
                 </Link>
 
-                {!isStandalone && (
+                {!isStandalone && !isInstalled && (
                   <button
                     type="button"
                     onClick={handleInstallClick}
@@ -281,7 +281,7 @@ const Home = () => {
       </div>
 
       {/* Mobile App Install Feature Section (Target: Mobile devices, shown if not yet installed) */}
-      {!isStandalone && (
+      {!isStandalone && !isInstalled && (
         <div className="py-12 bg-gradient-to-b from-blue-50/50 via-white to-slate-50 border-t border-blue-100/60">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 p-7 sm:p-12 text-white shadow-2xl border border-blue-800/40">

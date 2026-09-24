@@ -7,7 +7,7 @@ import usePushNotifications from '../hooks/usePushNotifications';
 const PublicNavbar = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { canInstall, isStandalone, promptInstall } = usePushNotifications();
+  const { canInstall, isStandalone, isInstalled, promptInstall } = usePushNotifications();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -54,7 +54,7 @@ const PublicNavbar = () => {
             <span>Public Map</span>
           </NavLink>
 
-          {!isStandalone && canInstall && (
+          {!isStandalone && !isInstalled && canInstall && (
             <button
               onClick={promptInstall}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-blue-200 text-blue-900 bg-blue-50 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer"
@@ -93,7 +93,7 @@ const PublicNavbar = () => {
 
         {/* Mobile Hamburger Toggle Button */}
         <div className="flex items-center gap-2 md:hidden">
-          {!isStandalone && (
+          {!isStandalone && !isInstalled && canInstall && (
             <button
               onClick={promptInstall}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-bold shadow-sm"
@@ -159,7 +159,7 @@ const PublicNavbar = () => {
             <span>Public Water Map</span>
           </NavLink>
 
-          {!isStandalone && (
+          {!isStandalone && !isInstalled && canInstall && (
             <button
               onClick={() => {
                 setMobileMenuOpen(false);

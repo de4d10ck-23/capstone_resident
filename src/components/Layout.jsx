@@ -22,7 +22,7 @@ const Layout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
 
-  const { canInstall, promptInstall, isStandalone } = usePushNotifications(API_URL, user);
+  const { canInstall, promptInstall, isStandalone, isInstalled } = usePushNotifications(API_URL, user);
 
   // Fetch and sync unread count in real time
   useEffect(() => {
@@ -69,7 +69,6 @@ const Layout = () => {
 
   const navItems = [
     { to: "/portal/my-barangay", icon: <MapPin size={20} />, label: "My Barangay Overview" },
-    { to: "/portal/notifications", icon: <Bell size={20} />, label: "Advisories & Alerts", badge: unreadCount },
     { to: "/portal/request-inspection", icon: <Search size={20} />, label: "Request Inspection" },
     { to: "/portal/submit-concern", icon: <MessageSquare size={20} />, label: "Submit Concern" },
   ];
@@ -150,7 +149,7 @@ const Layout = () => {
           </div>
         </div>
 
-        {canInstall && (
+        {!isInstalled && !isStandalone && canInstall && (
           <div className="mx-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl space-y-2">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
@@ -220,7 +219,7 @@ const Layout = () => {
 
           <div className="flex items-center gap-3 sm:gap-4">
             {/* Install App Button in Header (when installable) */}
-            {canInstall && (
+            {!isInstalled && !isStandalone && canInstall && (
               <button
                 onClick={promptInstall}
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-700 to-cyan-600 hover:from-blue-800 hover:to-cyan-700 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"

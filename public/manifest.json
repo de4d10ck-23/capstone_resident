@@ -1,6 +1,7 @@
 {
   "name": "WaterWatch Resident - Maasin City",
   "short_name": "WaterWatch",
+  "id": "/",
   "description": "Real-time water quality monitoring, health advisories, and drinking water safety platform for Maasin City.",
   "start_url": "/",
   "scope": "/",
@@ -9,6 +10,12 @@
   "background_color": "#0f3b82",
   "theme_color": "#0f3b82",
   "categories": ["health", "utilities", "government"],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "/manifest.json"
+    }
+  ],
   "icons": [
     {
       "src": "/images/logo/logo-circled1.png",

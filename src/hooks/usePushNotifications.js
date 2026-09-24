@@ -20,9 +20,30 @@ export const usePushNotifications = (apiUrl, user = null) => {
   const [error, setError] = useState(null);
 
   // PWA Install states
+  const checkStandalone = () => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      window.navigator.standalone === true ||
+      (typeof document !== 'undefined' && document.referrer && document.referrer.includes('android-app://'))
+    );
+  };
+
+  const checkStoredInstalled = () => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('waterwatch_pwa_installed') === 'true';
+    } catch {
+      return false;
+    }
+  };
+
   const [installPrompt, setInstallPrompt] = useState(null);
   const [canInstall, setCanInstall] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(checkStandalone);
+  const [isInstalled, setIsInstalled] = useState(() => checkStandalone() || checkStoredInstalled());
   const [isIOS, setIsIOS] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -44,11 +65,32 @@ export const usePushNotifications = (apiUrl, user = null) => {
     const iosCheck = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     setIsIOS(iosCheck);
 
-    // Detect if already installed / running in standalone window
-    const standaloneMode =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true;
+    // Detect standalone / already installed
+    const standaloneMode = checkStandalone();
     setIsStandalone(standaloneMode);
+
+    if (standaloneMode) {
+      setIsInstalled(true);
+      setCanInstall(false);
+      try {
+        localStorage.setItem('waterwatch_pwa_installed', 'true');
+      } catch {}
+    }
+
+    // Modern Chromium getInstalledRelatedApps API
+    if (typeof navigator !== 'undefined' && 'getInstalledRelatedApps' in navigator) {
+      navigator.getInstalledRelatedApps()
+        .then((apps) => {
+          if (Array.isArray(apps) && apps.length > 0) {
+            setIsInstalled(true);
+            setCanInstall(false);
+            try {
+              localStorage.setItem('waterwatch_pwa_installed', 'true');
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
 
     if (supported) {
       setPermission(Notification.permission);
@@ -80,8 +122,9 @@ export const usePushNotifications = (apiUrl, user = null) => {
         });
     }
 
-    // Check if prompt was already captured prior to hook mounting
-    if (typeof window !== 'undefined' && window.__deferredPrompt) {
+    // Check if prompt was captured prior to hook mounting
+    const alreadyInstalled = standaloneMode || checkStoredInstalled();
+    if (typeof window !== 'undefined' && window.__deferredPrompt && !alreadyInstalled) {
       setInstallPrompt(window.__deferredPrompt);
       setCanInstall(true);
     }
@@ -89,6 +132,10 @@ export const usePushNotifications = (apiUrl, user = null) => {
     // PWA beforeinstallprompt handler
     const handleBeforeInstall = (e) => {
       e.preventDefault();
+      if (checkStandalone() || checkStoredInstalled()) {
+        setCanInstall(false);
+        return;
+      }
       window.__deferredPrompt = e;
       setInstallPrompt(e);
       setCanInstall(true);
@@ -99,6 +146,10 @@ export const usePushNotifications = (apiUrl, user = null) => {
       setInstallPrompt(null);
       window.__deferredPrompt = null;
       setIsStandalone(true);
+      setIsInstalled(true);
+      try {
+        localStorage.setItem('waterwatch_pwa_installed', 'true');
+      } catch {}
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
@@ -108,7 +159,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [apiUrl, user?.id, user?.barangay]);
 
   // Trigger PWA installation prompt
   const promptInstall = useCallback(async () => {
@@ -120,6 +171,10 @@ export const usePushNotifications = (apiUrl, user = null) => {
       if (outcome === 'accepted') {
         setCanInstall(false);
         setInstallPrompt(null);
+        setIsInstalled(true);
+        try {
+          localStorage.setItem('waterwatch_pwa_installed', 'true');
+        } catch {}
         if (typeof window !== 'undefined') window.__deferredPrompt = null;
         return true;
       }
@@ -235,8 +290,9 @@ export const usePushNotifications = (apiUrl, user = null) => {
     isSubscribed,
     loading,
     error,
-    canInstall,
+    canInstall: Boolean(canInstall && !isInstalled && !isStandalone),
     isStandalone,
+    isInstalled,
     isIOS,
     isMobile,
     promptInstall,
