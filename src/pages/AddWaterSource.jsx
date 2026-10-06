@@ -1,20 +1,30 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { 
-  MessageSquare, 
+  PlusCircle, 
   Send, 
   CheckCircle2, 
   AlertCircle, 
+  MapPin, 
+  Crosshair,
   UploadCloud, 
+  Image as ImageIcon, 
   X, 
   Loader2, 
+  FileText, 
   Clock, 
+  ExternalLink, 
   RefreshCw, 
   Eye, 
-  Trash2 
+  Trash2,
+  Droplets
 } from "lucide-react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { MAASIN_BARANGAYS as barangays } from "../constants/barangays";
 import ReportDetailModal from "../components/ReportDetailModal";
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_KEY || "pk.eyJ1Ijoiamx0dCIsImEiOiJjbW9pNHBpZTgwMHB3MnFxMHNxcnY0MXBiIn0.__mzgeQcXuEDVkV6q8QNfQ";
 
 const extractPhotoProof = (r) => {
   if (!r) return null;
@@ -37,56 +47,60 @@ const cleanDesc = (r) => {
   return "";
 };
 
-const SubmitConcern = () => {
+const AddWaterSource = () => {
   const { user, token, API_URL } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     barangay: user?.barangay || "Combado",
-    category: "water_quality",
+    latitude: 10.1330,
+    longitude: 124.8700,
   });
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [geoError, setGeoError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  const [myReports, setMyReports] = useState([]);
-  const [loadingReports, setLoadingReports] = useState(true);
-  const [selectedProof, setSelectedProof] = useState(null);
+  const [mySources, setMySources] = useState([]);
+  const [loadingSources, setLoadingSources] = useState(true);
   const [detailReport, setDetailReport] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
   const fileInputRef = useRef(null);
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  const marker = useRef(null);
 
-  // Fetch Resident's Own Submitted Concerns (excluding unregistered sources)
-  const fetchMyReports = async () => {
+  // Fetch Resident's Own Submitted Water Sources
+  const fetchMySources = async () => {
     try {
-      setLoadingReports(true);
+      setLoadingSources(true);
       const res = await fetch(`${API_URL}/resident-reports`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        // Filter out unregistered sources so they appear on their dedicated page
-        const concernsOnly = data.data.filter(
-          (r) => r.type !== "unregistered_source" && r.category !== "unregistered_source"
+        const sourcesOnly = data.data.filter(
+          (r) => r.type === "unregistered_source" || r.category === "unregistered_source"
         );
-        setMyReports(concernsOnly);
+        setMySources(sourcesOnly);
       }
     } catch (err) {
-      console.error("Error fetching my resident reports:", err);
+      console.error("Error fetching my water sources:", err);
     } finally {
-      setLoadingReports(false);
+      setLoadingSources(false);
     }
   };
 
-  // Delete a pending concern submitted by the resident
-  const handleDeleteConcern = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this pending concern?")) return;
+  // Delete pending source submitted by resident
+  const handleDeleteSource = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this pending water source report?")) return;
     try {
       setDeletingId(id);
       const res = await fetch(`${API_URL}/resident-reports/${id}`, {
@@ -95,22 +109,22 @@ const SubmitConcern = () => {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.detail || data.message || "Failed to delete concern");
+        throw new Error(data.detail || data.message || "Failed to delete water source report");
       }
-      setMyReports((prev) => prev.filter((r) => r.id !== id));
+      setMySources((prev) => prev.filter((r) => r.id !== id));
       if (detailReport?.id === id) {
         setDetailReport(null);
       }
     } catch (err) {
-      console.error("Error deleting concern:", err);
-      alert(err.message || "Failed to delete concern.");
+      console.error("Error deleting source:", err);
+      alert(err.message || "Failed to delete water source report.");
     } finally {
       setDeletingId(null);
     }
   };
 
   useEffect(() => {
-    fetchMyReports();
+    fetchMySources();
   }, [token, API_URL]);
 
   // Handle Image Selection
@@ -145,7 +159,6 @@ const SubmitConcern = () => {
     }
   };
 
-  // Clean up preview object URL on unmount
   useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -154,10 +167,209 @@ const SubmitConcern = () => {
     };
   }, [previewUrl]);
 
+  // Initialize Mapbox map
+  useEffect(() => {
+    if (!mapContainer.current) return;
+
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+
+    const initialLng = parseFloat(formData.longitude) || 124.8700;
+    const initialLat = parseFloat(formData.latitude) || 10.1330;
+
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [initialLng, initialLat],
+      zoom: 13,
+    });
+
+    map.current.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    map.current.addControl(new mapboxgl.FullscreenControl(), "top-right");
+
+    // Custom interactive marker element
+    const el = document.createElement("div");
+    el.className = "cursor-grab active:cursor-grabbing";
+    el.innerHTML = `
+      <div class="flex flex-col items-center group">
+        <div class="px-2.5 py-1 rounded-full bg-blue-900 text-white text-[10px] font-bold shadow-lg mb-1 whitespace-nowrap border border-cyan-400 flex items-center gap-1 animate-pulse">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+          <span>New Source Location</span>
+        </div>
+        <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-cyan-500 border-2 border-white shadow-xl flex items-center justify-center text-white ring-4 ring-blue-500/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
+      </div>
+    `;
+
+    marker.current = new mapboxgl.Marker({
+      element: el,
+      draggable: true,
+      anchor: "bottom",
+    })
+      .setLngLat([initialLng, initialLat])
+      .addTo(map.current);
+
+    // On marker dragend: update form coordinates
+    marker.current.on("dragend", () => {
+      const lngLat = marker.current.getLngLat();
+      setFormData((prev) => ({
+        ...prev,
+        latitude: parseFloat(lngLat.lat.toFixed(6)),
+        longitude: parseFloat(lngLat.lng.toFixed(6)),
+      }));
+    });
+
+    // On map click: move marker and update coordinates
+    map.current.on("click", (e) => {
+      const { lng, lat } = e.lngLat;
+      marker.current.setLngLat([lng, lat]);
+      setFormData((prev) => ({
+        ...prev,
+        latitude: parseFloat(lat.toFixed(6)),
+        longitude: parseFloat(lng.toFixed(6)),
+      }));
+    });
+
+    const timer = setTimeout(() => {
+      if (map.current) {
+        map.current.resize();
+      }
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+        marker.current = null;
+      }
+    };
+  }, []);
+
+  // Geolocation handler to use user's current GPS location
+  const handleUseCurrentLocation = () => {
+    setGeoError("");
+    if (!navigator.geolocation) {
+      setGeoError("Geolocation is not supported by your web browser.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = parseFloat(position.coords.latitude.toFixed(6));
+        const lng = parseFloat(position.coords.longitude.toFixed(6));
+
+        setFormData((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+        }));
+
+        if (map.current) {
+          map.current.flyTo({
+            center: [lng, lat],
+            zoom: 16,
+            essential: true,
+          });
+        }
+        if (marker.current) {
+          marker.current.setLngLat([lng, lat]);
+        }
+        setLocating(false);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setLocating(false);
+        if (error.code === 1) {
+          setGeoError("Location permission denied. Please allow GPS access in your browser or click on the map to pinpoint.");
+        } else {
+          setGeoError("Unable to acquire your exact location. Please select the location manually on the map.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
+
+  const updateMapMarker = (latVal, lngVal) => {
+    const lat = parseFloat(latVal);
+    const lng = parseFloat(lngVal);
+    const isValidLat = !isNaN(lat) && lat >= -90 && lat <= 90;
+    const isValidLng = !isNaN(lng) && lng >= -180 && lng <= 180;
+
+    if (isValidLat && isValidLng && marker.current && map.current) {
+      try {
+        marker.current.setLngLat([lng, lat]);
+        map.current.flyTo({ center: [lng, lat] });
+      } catch (err) {
+        console.warn("Could not update map marker position:", err);
+      }
+    }
+  };
+
+  const handleManualCoordChange = (field, val) => {
+    if (typeof val === "string") {
+      const matches = val.match(/[-+]?[0-9]*\.?[0-9]+/g);
+      if (matches && matches.length >= 2) {
+        let n1 = parseFloat(matches[0]);
+        let n2 = parseFloat(matches[1]);
+        if (!isNaN(n1) && !isNaN(n2)) {
+          let lat = n1;
+          let lng = n2;
+          if (Math.abs(n1) > 90 && Math.abs(n2) <= 90) {
+            lat = n2;
+            lng = n1;
+          }
+          setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+          updateMapMarker(lat, lng);
+          return;
+        }
+      }
+    }
+
+    const updated = {
+      ...formData,
+      [field]: val,
+    };
+    setFormData(updated);
+
+    const lat = parseFloat(field === "latitude" ? val : formData.latitude);
+    const lng = parseFloat(field === "longitude" ? val : formData.longitude);
+    updateMapMarker(lat, lng);
+  };
+
+  const handleCoordPaste = (e) => {
+    const pasteText = e.clipboardData?.getData("text") || "";
+    const matches = pasteText.match(/[-+]?[0-9]*\.?[0-9]+/g);
+    if (matches && matches.length >= 2) {
+      e.preventDefault();
+      let n1 = parseFloat(matches[0]);
+      let n2 = parseFloat(matches[1]);
+      if (!isNaN(n1) && !isNaN(n2)) {
+        let lat = n1;
+        let lng = n2;
+        if (Math.abs(n1) > 90 && Math.abs(n2) <= 90) {
+          lat = n2;
+          lng = n1;
+        }
+        setFormData((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+        updateMapMarker(lat, lng);
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSuccessMsg("");
     setErrorMsg("");
+    setGeoError("");
     setIsSubmitting(true);
     setUploadStatus("");
 
@@ -199,16 +411,16 @@ const SubmitConcern = () => {
         }
       }
 
-      setUploadStatus("Sending concern to Barangay...");
+      setUploadStatus("Sending water source details to Barangay...");
 
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
-        category: formData.category,
-        type: formData.category,
+        category: "unregistered_source",
+        type: "unregistered_source",
         barangay: formData.barangay,
-        latitude: null,
-        longitude: null,
+        latitude: parseFloat(formData.latitude),
+        longitude: parseFloat(formData.longitude),
         image_url: uploadedImageUrl,
         photo_url: uploadedImageUrl,
       };
@@ -225,21 +437,22 @@ const SubmitConcern = () => {
       const data = await res.json();
       if (data.success) {
         setSuccessMsg(
-          "Concern submitted! Your Barangay Officials will review and endorse this directly to Sanitization Inspectors."
+          "Water source reported! Your Barangay Officials and Health Inspectors will review and verify this location for formal inspection."
         );
         setFormData({
           title: "",
           description: "",
           barangay: user?.barangay || "Combado",
-          category: "water_quality",
+          latitude: 10.1330,
+          longitude: 124.8700,
         });
         handleRemoveImage();
-        fetchMyReports();
+        fetchMySources();
       } else {
-        setErrorMsg(data.detail || "Failed to submit concern. Please try again.");
+        setErrorMsg(data.detail || "Failed to submit water source. Please try again.");
       }
     } catch (err) {
-      console.error("Error submitting resident concern:", err);
+      console.error("Error submitting water source:", err);
       setErrorMsg("Network connection error. Could not reach the server.");
     } finally {
       setIsSubmitting(false);
@@ -252,11 +465,11 @@ const SubmitConcern = () => {
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-center gap-3 mb-2">
-          <MessageSquare size={24} className="text-cyan-300" />
-          <h1 className="text-3xl font-extrabold text-white">Submit Community Concern</h1>
+          <PlusCircle size={26} className="text-cyan-300" />
+          <h1 className="text-3xl font-extrabold text-white">Add Water Source</h1>
         </div>
         <p className="text-white/80 text-sm max-w-xl">
-          Report broken water pipes, unhygienic toilet proximity, contaminated supplies, or water sanitation hazards directly to your Barangay Officials for review and inspection triage.
+          Report and pinpoint new or unregistered drinking water sources (deep wells, springs, or public stations) directly to your Barangay Officials and Health Inspectors for inspection and verification.
         </p>
       </div>
 
@@ -284,18 +497,18 @@ const SubmitConcern = () => {
 
       {/* Main Form Container */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
-        <h2 className="text-base font-bold text-slate-900 mb-4">New Concern Details</h2>
+        <h2 className="text-base font-bold text-slate-900 mb-4">Water Source Details</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-                Concern Subject / Title
+                Water Source Name / Landmark
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="e.g. Brown water coming out of tap on Rizal St."
+                placeholder="e.g. Purok 4 Community Deep Well"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
                 required
               />
@@ -303,37 +516,120 @@ const SubmitConcern = () => {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-                Concern Category
+                Barangay Location
               </label>
               <select
-                value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                value={formData.barangay}
+                onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+                required
               >
-                <option value="water_quality">Water Quality (Odor, Color, Taste)</option>
-                <option value="broken_pipe">Damaged / Broken Pipeline</option>
-                <option value="toilet_proximity">Unhygienic Toilet Near Water Source</option>
-                <option value="other">Other Community Health Issue</option>
+                {barangays.map((b) => (
+                  <option key={b} value={b}>
+                    Barangay {b}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-              Barangay Location
-            </label>
-            <select
-              value={formData.barangay}
-              onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
-              required
-            >
-              {barangays.map((b) => (
-                <option key={b} value={b}>
-                  Barangay {b}
-                </option>
-              ))}
-            </select>
+          {/* Interactive Map & GPS Pinpoint Section */}
+          <div className="space-y-4 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-blue-200 animate-fade-in shadow-inner">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} className="text-blue-600" />
+                  <h3 className="font-bold text-sm text-slate-900">
+                    Water Source Location Pinpoint
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Click anywhere on the map or drag the pin to set the exact coordinates of the unregistered source.
+                </p>
+              </div>
+
+              {/* Use Current GPS Location Button */}
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={locating}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 flex-shrink-0"
+              >
+                {locating ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Acquiring GPS...</span>
+                  </>
+                ) : (
+                  <>
+                    <Crosshair size={15} />
+                    <span>Use Current Location</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Geolocation Warning / Feedback */}
+            {geoError && (
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                <AlertCircle size={15} className="text-amber-600 flex-shrink-0" />
+                <span>{geoError}</span>
+              </div>
+            )}
+
+            {/* Map Container */}
+            <div className="relative w-full h-80 rounded-2xl overflow-hidden border border-slate-300 shadow-md">
+              <div ref={mapContainer} className="w-full h-full" />
+              
+              {/* Floating GPS badge on map */}
+              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-xs font-mono shadow-md border border-white/10 pointer-events-none flex items-center gap-2 z-10">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                <span>
+                  Lat: {parseFloat(formData.latitude).toFixed(6)} | Lng: {parseFloat(formData.longitude).toFixed(6)}
+                </span>
+              </div>
+            </div>
+
+            {/* Coordinate Numeric Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    Latitude (GPS)
+                  </label>
+                  <span className="text-[10px] text-slate-400">Accepts paste (lat, lng)</span>
+                </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.latitude}
+                  onChange={(e) => handleManualCoordChange("latitude", e.target.value)}
+                  onPaste={handleCoordPaste}
+                  placeholder="10.133000"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                    Longitude (GPS)
+                  </label>
+                  <span className="text-[10px] text-slate-400">Accepts paste (lat, lng)</span>
+                </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.longitude}
+                  onChange={(e) => handleManualCoordChange("longitude", e.target.value)}
+                  onPaste={handleCoordPaste}
+                  placeholder="124.870000"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -344,7 +640,7 @@ const SubmitConcern = () => {
               rows={4}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Provide specific details to help Barangay Officials and Health Inspectors investigate..."
+              placeholder="Describe who constructed the water source, estimated households using it, visible sanitation hazards, or landmark directions..."
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
               required
             />
@@ -367,12 +663,12 @@ const SubmitConcern = () => {
               onChange={handleFileChange}
               accept="image/png,image/jpeg,image/jpg,image/webp"
               className="hidden"
-              id="concern-image-input"
+              id="water-source-image-input"
             />
 
             {!previewUrl ? (
               <label
-                htmlFor="concern-image-input"
+                htmlFor="water-source-image-input"
                 className="group flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 hover:border-blue-500 rounded-2xl bg-slate-50/70 hover:bg-blue-50/30 transition-all cursor-pointer text-center"
               >
                 <div className="w-12 h-12 rounded-2xl bg-white group-hover:bg-blue-100 text-slate-400 group-hover:text-blue-600 border border-slate-200 group-hover:border-blue-200 flex items-center justify-center shadow-xs transition-all mb-3">
@@ -429,48 +725,47 @@ const SubmitConcern = () => {
             {isSubmitting ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                <span>{uploadStatus || "Submitting Concern..."}</span>
+                <span>{uploadStatus || "Submitting Water Source..."}</span>
               </>
             ) : (
               <>
                 <Send size={16} />
-                <span>Send to Barangay & Health Inspectors</span>
+                <span>Submit Water Source to Barangay</span>
               </>
             )}
           </button>
         </form>
       </div>
 
-      {/* My Submitted Concerns & Live Status Tracking */}
+      {/* My Submitted Water Sources & Live Status Tracking */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-900">My Submitted Concerns</h2>
-            <p className="text-xs text-slate-500">Track real-time progress as your Barangay and Inspectors process your reports</p>
+            <h2 className="text-base font-bold text-slate-900">My Added Water Sources</h2>
+            <p className="text-xs text-slate-500">Track real-time inspection status as your Barangay and Health Inspectors verify your submitted water sources</p>
           </div>
           <button
-            onClick={fetchMyReports}
+            onClick={fetchMySources}
             className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
             title="Refresh status"
           >
-            <RefreshCw size={15} className={loadingReports ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={loadingSources ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {loadingReports ? (
+        {loadingSources ? (
           <div className="text-center py-8 text-slate-400 text-xs">Loading submission status...</div>
-        ) : myReports.length === 0 ? (
+        ) : mySources.length === 0 ? (
           <div className="text-center py-8 text-slate-400 text-xs">
-            You haven't submitted any concerns yet.
+            You haven't submitted any new water sources yet.
           </div>
         ) : (
           <div className="space-y-3">
-            {myReports.map((r) => {
+            {mySources.map((r) => {
               const isPending = !r.status || r.status === "pending";
               const isEscalated = r.status === "escalated";
               const isValidated = r.status === "validated";
               const isRejected = r.status === "rejected" || r.status === "dismissed";
-              const photo = extractPhotoProof(r);
               const displayDesc = cleanDesc(r) || r.description;
 
               return (
@@ -481,13 +776,21 @@ const SubmitConcern = () => {
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-sm text-slate-900">{r.title}</h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-slate-200 text-slate-600 capitalize">
-                        {(r.type || r.category || "Concern").replace(/_/g, " ")}
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200 text-blue-700">
+                        New Water Source
                       </span>
                     </div>
                     <p className="text-xs text-slate-600">{displayDesc}</p>
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
                       <span>Brgy. {r.barangay}</span>
+                      {r.latitude && r.longitude && (
+                        <>
+                          <span>•</span>
+                          <span className="font-mono text-slate-500">
+                            {parseFloat(r.latitude).toFixed(4)}, {parseFloat(r.longitude).toFixed(4)}
+                          </span>
+                        </>
+                      )}
                       <span>•</span>
                       <span>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}</span>
                       {r.reason && (
@@ -513,10 +816,10 @@ const SubmitConcern = () => {
                     {isPending && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteConcern(r.id)}
+                        onClick={() => handleDeleteSource(r.id)}
                         disabled={deletingId === r.id}
                         className="px-3 py-1 rounded-xl bg-white hover:bg-red-50 text-red-600 border border-slate-200 hover:border-red-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
-                        title="Delete this pending concern"
+                        title="Delete this pending water source"
                       >
                         <Trash2 size={12} />
                         <span>{deletingId === r.id ? "Deleting..." : "Delete"}</span>
@@ -553,40 +856,16 @@ const SubmitConcern = () => {
         )}
       </div>
 
-      {/* Detailed Concern Modal for Resident with Mapbox */}
+      {/* Detailed Report Modal with Mapbox */}
       {detailReport && (
         <ReportDetailModal
           report={detailReport}
           onClose={() => setDetailReport(null)}
-          onDelete={handleDeleteConcern}
+          onDelete={handleDeleteSource}
         />
-      )}
-
-      {/* Photo Proof Modal */}
-      {selectedProof && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 animate-fade-in">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-sm text-slate-900">Submitted Photo Proof</h3>
-              <button
-                onClick={() => setSelectedProof(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="w-full max-h-[60vh] overflow-hidden rounded-2xl bg-slate-100 flex items-center justify-center">
-              <img
-                src={selectedProof}
-                alt="Proof Preview"
-                className="max-h-[58vh] w-auto object-contain"
-              />
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
 };
 
-export default SubmitConcern;
+export default AddWaterSource;

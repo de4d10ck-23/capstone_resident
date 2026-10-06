@@ -59,6 +59,12 @@ const MyBarangay = () => {
 
         <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
           <Link
+            to="/portal/add-water-source"
+            className="px-5 py-2.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center flex items-center justify-center gap-1.5"
+          >
+            Add Water Source
+          </Link>
+          <Link
             to="/portal/submit-concern"
             className="px-5 py-2.5 rounded-full bg-white text-blue-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
           >
@@ -66,7 +72,7 @@ const MyBarangay = () => {
           </Link>
           <Link
             to="/portal/request-inspection"
-            className="px-5 py-2.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
+            className="px-5 py-2.5 rounded-full bg-blue-800/80 hover:bg-blue-800 text-white border border-white/20 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
           >
             Request Inspection
           </Link>

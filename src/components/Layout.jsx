@@ -7,7 +7,7 @@ import {
   MessageSquare,
   LogOut,
   Droplets,
-  Home,
+  PlusCircle,
   Bell,
   Menu,
   X,
@@ -69,6 +69,7 @@ const Layout = () => {
 
   const navItems = [
     { to: "/portal/my-barangay", icon: <MapPin size={20} />, label: "My Barangay Overview" },
+    { to: "/portal/add-water-source", icon: <PlusCircle size={20} />, label: "Add Water Source" },
     { to: "/portal/request-inspection", icon: <Search size={20} />, label: "Request Inspection" },
     { to: "/portal/submit-concern", icon: <MessageSquare size={20} />, label: "Submit Concern" },
   ];
@@ -100,15 +101,6 @@ const Layout = () => {
       </div>
       
       <nav className="flex-1 overflow-y-auto p-4 space-y-1.5">
-        <NavLink
-          to="/"
-          onClick={() => setMobileOpen(false)}
-          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all mb-2"
-        >
-          <Home size={20} />
-          <span>Public Home</span>
-        </NavLink>
-
         {navItems.map((item) => (
           <NavLink 
             key={item.to}

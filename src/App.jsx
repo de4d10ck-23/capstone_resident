@@ -15,6 +15,7 @@ import MyBarangay from './pages/MyBarangay';
 import Notifications from './pages/Notifications';
 import RequestInspection from './pages/RequestInspection';
 import SubmitConcern from './pages/SubmitConcern';
+import AddWaterSource from './pages/AddWaterSource';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             <Route index element={<Navigate to="/portal/my-barangay" replace />} />
             <Route path="my-barangay" element={<MyBarangay />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="add-water-source" element={<AddWaterSource />} />
             <Route path="request-inspection" element={<RequestInspection />} />
             <Route path="submit-concern" element={<SubmitConcern />} />
           </Route>
