@@ -3,7 +3,6 @@ import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   MapPin, 
-  Search,
   MessageSquare,
   LogOut,
   Droplets,
@@ -70,8 +69,7 @@ const Layout = () => {
   const navItems = [
     { to: "/portal/my-barangay", icon: <MapPin size={20} />, label: "My Barangay Overview" },
     { to: "/portal/add-water-source", icon: <PlusCircle size={20} />, label: "Add Water Source" },
-    { to: "/portal/request-inspection", icon: <Search size={20} />, label: "Request Inspection" },
-    { to: "/portal/submit-concern", icon: <MessageSquare size={20} />, label: "Submit Concern" },
+    { to: "/portal/submit-concern", icon: <MessageSquare size={20} />, label: "Submit Concern / Request" },
   ];
 
   const renderNavContent = () => (

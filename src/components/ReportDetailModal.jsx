@@ -3,7 +3,6 @@ import {
   MapPin, 
   Calendar, 
   ExternalLink, 
-  CheckCircle2, 
   Send, 
   X, 
   Image as ImageIcon,
@@ -32,7 +31,10 @@ const getDisplayDescription = (r) => {
   if (!r) return "";
   if (r.clean_description) return r.clean_description;
   if (r.description) {
-    return r.description.replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "").trim();
+    return r.description
+      .replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "")
+      .replace(/\[Inspected Source:[^\]]+\]\s*/gi, "")
+      .trim();
   }
   return "";
 };
@@ -99,9 +101,10 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
 
   if (!report) return null;
 
-  const isPending = !report.status || report.status === "pending";
-  const isValidated = report.status === "validated";
-  const isEscalated = report.status === "escalated";
+  const isEscalated = report.status === "escalated" || report.status === "passed_to_chu";
+  const isDone = report.status === "done" || report.status === "resolved" || report.status === "completed";
+  const isDismissed = report.status === "dismissed" || report.status === "rejected";
+  const isPending = !isEscalated && !isDone && !isDismissed;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -114,19 +117,21 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
                 {(report.type || report.category || "Concern").replace(/_/g, " ")}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                isPending
-                  ? "bg-amber-100 text-amber-800 border border-amber-200"
-                  : isValidated
-                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                  : isEscalated
+                isEscalated
                   ? "bg-purple-100 text-purple-800 border border-purple-200"
-                  : "bg-slate-100 text-slate-700 border border-slate-200"
+                  : isDone
+                  ? "bg-blue-100 text-blue-800 border border-blue-200"
+                  : isDismissed
+                  ? "bg-rose-100 text-rose-800 border border-rose-200"
+                  : "bg-amber-100 text-amber-800 border border-amber-200"
               }`}>
                 {isEscalated
                   ? "Passed to CHU"
-                  : isValidated
-                  ? "Validated & Verified"
-                  : report.status || "Pending Barangay Review"}
+                  : isDone
+                  ? "Done"
+                  : isDismissed
+                  ? "Dismissed"
+                  : "Pending Barangay Review"}
               </span>
             </div>
             <h2 className="text-xl font-extrabold text-slate-900 pt-1">{report.title}</h2>
@@ -194,10 +199,6 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
 
           <div className="relative w-full h-56 rounded-2xl overflow-hidden border border-slate-300 shadow-inner">
             <div ref={mapContainer} className="w-full h-full" />
-            <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-[11px] font-mono shadow-md border border-white/15 pointer-events-none flex items-center gap-2 z-10">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-              <span>Coordinates Pinpoint</span>
-            </div>
           </div>
         </div>
 

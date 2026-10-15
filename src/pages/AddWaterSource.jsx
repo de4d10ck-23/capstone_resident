@@ -17,12 +17,20 @@ import {
   RefreshCw, 
   Eye, 
   Trash2,
-  Droplets
+  Droplets,
+  Maximize2,
+  Layers
 } from "lucide-react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { MAASIN_BARANGAYS as barangays } from "../constants/barangays";
 import ReportDetailModal from "../components/ReportDetailModal";
+import {
+  getBarangayFeature,
+  getBarangayBounds,
+  getBarangayCenter,
+  checkBarangayJurisdiction,
+  formatBarangayName
+} from "../utils/barangayBoundary";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_KEY || "pk.eyJ1Ijoiamx0dCIsImEiOiJjbW9pNHBpZTgwMHB3MnFxMHNxcnY0MXBiIn0.__mzgeQcXuEDVkV6q8QNfQ";
 
@@ -42,7 +50,10 @@ const cleanDesc = (r) => {
   if (!r) return "";
   if (r.clean_description) return r.clean_description;
   if (r.description) {
-    return r.description.replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "").trim();
+    return r.description
+      .replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "")
+      .replace(/\[Inspected Source:[^\]]+\]\s*/gi, "")
+      .trim();
   }
   return "";
 };
@@ -50,13 +61,29 @@ const cleanDesc = (r) => {
 const AddWaterSource = () => {
   const { user, token, API_URL } = useAuth();
 
+  const userBrgy = user?.barangay || "Abgao";
+  const defaultFeat = getBarangayFeature(userBrgy);
+  const defaultCenter = defaultFeat ? getBarangayCenter(defaultFeat) : [124.84343, 10.135769];
+  const defaultLng = defaultCenter ? parseFloat(defaultCenter[0].toFixed(6)) : 124.84343;
+  const defaultLat = defaultCenter ? parseFloat(defaultCenter[1].toFixed(6)) : 10.135769;
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    barangay: user?.barangay || "Combado",
-    latitude: 10.1330,
-    longitude: 124.8700,
+    barangay: userBrgy,
+    latitude: defaultLat,
+    longitude: defaultLng,
   });
+
+  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/streets-v12");
+
+  const [locationValidation, setLocationValidation] = useState({
+    isValid: true,
+    detectedArea: "",
+    message: "",
+  });
+  const [validatingLoc, setValidatingLoc] = useState(false);
+  const debounceTimerRef = useRef(null);
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -167,20 +194,273 @@ const AddWaterSource = () => {
     };
   }, [previewUrl]);
 
+  const userBarangayRef = useRef(user?.barangay || "Abgao");
+  useEffect(() => {
+    userBarangayRef.current = user?.barangay || "Abgao";
+  }, [user?.barangay]);
+
+  // Render boundary overlay layers on Mapbox map
+  const renderBoundaryLayer = (brgyName, shouldFit = false) => {
+    if (!map.current) return;
+
+    const target = brgyName || userBarangayRef.current || "Abgao";
+    const feature = getBarangayFeature(target);
+    if (!feature) return;
+
+    // If style isn't fully ready yet, queue once on 'idle' when style & tiles are guaranteed ready
+    if (!map.current.isStyleLoaded()) {
+      map.current.once("idle", () => {
+        renderBoundaryLayer(brgyName, shouldFit);
+      });
+      return;
+    }
+
+    const sourceData = {
+      type: "FeatureCollection",
+      features: [feature],
+    };
+
+    try {
+      // 1. Ensure GeoJSON source exists and is updated
+      const existingSource = map.current.getSource("barangay-boundary");
+      if (existingSource) {
+        existingSource.setData(sourceData);
+      } else {
+        map.current.addSource("barangay-boundary", {
+          type: "geojson",
+          data: sourceData,
+        });
+      }
+
+      // 2. Ensure fill layer exists (vibrant translucent sky blue)
+      if (!map.current.getLayer("barangay-boundary-fill")) {
+        map.current.addLayer({
+          id: "barangay-boundary-fill",
+          type: "fill",
+          source: "barangay-boundary",
+          paint: {
+            "fill-color": "#0ea5e9",
+            "fill-opacity": 0.28,
+          },
+        });
+      }
+
+      // 3. Ensure outer perimeter glow exists (bright sky cyan for high satellite contrast)
+      if (!map.current.getLayer("barangay-boundary-glow")) {
+        map.current.addLayer({
+          id: "barangay-boundary-glow",
+          type: "line",
+          source: "barangay-boundary",
+          paint: {
+            "line-color": "#38bdf8",
+            "line-width": 6,
+            "line-opacity": 0.85,
+          },
+        });
+      }
+
+      // 4. Ensure dashed border perimeter line exists
+      if (!map.current.getLayer("barangay-boundary-line")) {
+        map.current.addLayer({
+          id: "barangay-boundary-line",
+          type: "line",
+          source: "barangay-boundary",
+          paint: {
+            "line-color": "#0284c7",
+            "line-width": 3.5,
+            "line-dasharray": [2, 1.5],
+          },
+        });
+      }
+    } catch (err) {
+      console.warn("Error rendering boundary layer:", err);
+    }
+
+    if (shouldFit) {
+      const bounds = getBarangayBounds(feature);
+      if (bounds) {
+        map.current.fitBounds(bounds, { padding: 45, maxZoom: 16.5, duration: 800 });
+      }
+    }
+  };
+
+  // Re-center and frame the map on designated barangay boundary
+  const handleFitToBoundary = () => {
+    if (!map.current) return;
+    renderBoundaryLayer(userBarangayRef.current || "Abgao", true);
+  };
+
+  // Change Map Style (Streets / Satellite) and reliably preserve boundary
+  const handleMapStyleChange = (newStyle) => {
+    if (newStyle === mapStyle) return;
+    setMapStyle(newStyle);
+    if (!map.current) return;
+
+    // Use map.once("idle") to re-apply the boundary as soon as the new style is completely ready
+    map.current.once("idle", () => {
+      renderBoundaryLayer(userBarangayRef.current || "Abgao", false);
+    });
+
+    map.current.setStyle(newStyle, { diff: false });
+  };
+
+  // Validate whether coordinates fall within resident's designated barangay
+  const validateCoordinates = async (lat, lng) => {
+    const targetBrgy = (user?.barangay || "Combado").trim();
+    if (isNaN(lat) || isNaN(lng)) return;
+    setValidatingLoc(true);
+
+    // 1. Strict check against official GeoJSON barangay polygon boundaries
+    const jurisdiction = checkBarangayJurisdiction(lng, lat, targetBrgy);
+    if (jurisdiction.targetFeature) {
+      if (jurisdiction.isInsideTarget) {
+        setLocationValidation({
+          isValid: true,
+          detectedArea: targetBrgy,
+          message: `Location verified inside Barangay ${targetBrgy}.`,
+        });
+      } else {
+        const detected = jurisdiction.detectedBarangay;
+        setLocationValidation({
+          isValid: false,
+          detectedArea: detected || "Outside boundary",
+          message:
+            detected && detected.toLowerCase() !== targetBrgy.toLowerCase()
+              ? `Location is in Barangay ${detected} (Outside Barangay ${targetBrgy}). Please pin inside.`
+              : `Location is outside Barangay ${targetBrgy}. Please pin inside.`,
+        });
+      }
+      setValidatingLoc(false);
+      return;
+    }
+
+    // 2. Fallback to Mapbox geocoding reverse lookup if not caught by polygon rings
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const features = data.features || [];
+
+      let detectedName = null;
+      for (const f of features) {
+        const pt = f.place_type || [];
+        if (pt.includes("locality") || pt.includes("neighborhood")) {
+          detectedName = f.text;
+          break;
+        } else if (pt.includes("address")) {
+          const ctx = (f.context || []).find((c) => c.id.startsWith("locality") || c.id.startsWith("neighborhood"));
+          if (ctx) {
+            detectedName = ctx.text;
+            break;
+          }
+        }
+      }
+
+      const targetLower = targetBrgy.toLowerCase();
+      const isMatch = features.some((f) => {
+        const pName = (f.place_name || "").toLowerCase();
+        const text = (f.text || "").toLowerCase();
+        return pName.includes(targetLower) || text === targetLower;
+      });
+
+      const isExplicitDifferent = detectedName && detectedName.toLowerCase() !== targetLower;
+      const isValid = isMatch && !isExplicitDifferent;
+
+      if (isValid) {
+        setLocationValidation({
+          isValid: true,
+          detectedArea: detectedName || targetBrgy,
+          message: `Location verified inside Barangay ${targetBrgy}.`
+        });
+      } else {
+        const areaText = detectedName ? `in Barangay ${detectedName}` : "outside your barangay boundary";
+        setLocationValidation({
+          isValid: false,
+          detectedArea: detectedName || "Outside boundary",
+          message: `Location is ${areaText} (outside Barangay ${targetBrgy}). Please pin inside.`
+        });
+      }
+    } catch (err) {
+      console.warn("Location boundary check error:", err);
+    } finally {
+      setValidatingLoc(false);
+    }
+  };
+
+  // Center map and load boundary on resident's designated barangay upon loading
+  useEffect(() => {
+    const targetBrgy = user?.barangay || "Combado";
+
+    // 1. Check if we have official GeoJSON polygon for this barangay
+    const feat = getBarangayFeature(targetBrgy);
+    if (feat) {
+      const center = getBarangayCenter(feat);
+      if (center) {
+        const [cLng, cLat] = center;
+        const lat = parseFloat(cLat.toFixed(6));
+        const lng = parseFloat(cLng.toFixed(6));
+        setFormData((prev) => ({
+          ...prev,
+          barangay: targetBrgy,
+          latitude: lat,
+          longitude: lng,
+        }));
+        if (marker.current) {
+          marker.current.setLngLat([cLng, cLat]);
+        }
+        validateCoordinates(lat, lng);
+      }
+      renderBoundaryLayer(targetBrgy, true);
+      return;
+    }
+
+    // 2. Fallback: Geocode via Mapbox forward API
+    const initBarangay = async () => {
+      try {
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(targetBrgy + ', Maasin, Southern Leyte')}.json?access_token=${MAPBOX_TOKEN}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const featData = data.features?.[0];
+        if (featData && featData.center) {
+          const [cLng, cLat] = featData.center;
+          const lat = parseFloat(cLat.toFixed(6));
+          const lng = parseFloat(cLng.toFixed(6));
+          setFormData((prev) => ({
+            ...prev,
+            barangay: targetBrgy,
+            latitude: lat,
+            longitude: lng,
+          }));
+          if (map.current) {
+            map.current.flyTo({ center: [cLng, cLat], zoom: 15 });
+          }
+          if (marker.current) {
+            marker.current.setLngLat([cLng, cLat]);
+          }
+          validateCoordinates(lat, lng);
+        }
+      } catch (err) {
+        console.warn("Error geocoding resident barangay center:", err);
+      }
+    };
+
+    initBarangay();
+  }, [user?.barangay]);
+
   // Initialize Mapbox map
   useEffect(() => {
     if (!mapContainer.current) return;
 
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    const initialLng = parseFloat(formData.longitude) || 124.8700;
-    const initialLat = parseFloat(formData.latitude) || 10.1330;
+    const initialLng = defaultLng;
+    const initialLat = defaultLat;
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/streets-v12",
       center: [initialLng, initialLat],
-      zoom: 13,
+      zoom: 15.5,
     });
 
     map.current.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
@@ -212,25 +492,41 @@ const AddWaterSource = () => {
       .setLngLat([initialLng, initialLat])
       .addTo(map.current);
 
-    // On marker dragend: update form coordinates
+    // On marker dragend: update form coordinates & validate boundary
     marker.current.on("dragend", () => {
       const lngLat = marker.current.getLngLat();
+      const lat = parseFloat(lngLat.lat.toFixed(6));
+      const lng = parseFloat(lngLat.lng.toFixed(6));
       setFormData((prev) => ({
         ...prev,
-        latitude: parseFloat(lngLat.lat.toFixed(6)),
-        longitude: parseFloat(lngLat.lng.toFixed(6)),
+        latitude: lat,
+        longitude: lng,
       }));
+      validateCoordinates(lat, lng);
     });
 
-    // On map click: move marker and update coordinates
+    // On map click: move marker, update coordinates & validate boundary
     map.current.on("click", (e) => {
       const { lng, lat } = e.lngLat;
+      const fLat = parseFloat(lat.toFixed(6));
+      const fLng = parseFloat(lng.toFixed(6));
       marker.current.setLngLat([lng, lat]);
       setFormData((prev) => ({
         ...prev,
-        latitude: parseFloat(lat.toFixed(6)),
-        longitude: parseFloat(lng.toFixed(6)),
+        latitude: fLat,
+        longitude: fLng,
       }));
+      validateCoordinates(fLat, fLng);
+    });
+
+    // Render initial boundary overlay once map finishes loading
+    map.current.on("load", () => {
+      renderBoundaryLayer(userBarangayRef.current, true);
+    });
+
+    // Render boundary overlay whenever any style finishes loading
+    map.current.on("style.load", () => {
+      renderBoundaryLayer(userBarangayRef.current, false);
     });
 
     const timer = setTimeout(() => {
@@ -280,6 +576,9 @@ const AddWaterSource = () => {
           marker.current.setLngLat([lng, lat]);
         }
         setLocating(false);
+
+        // Validate if acquired GPS location is inside resident's designated barangay
+        validateCoordinates(lat, lng);
       },
       (error) => {
         console.error("Geolocation error:", error);
@@ -311,6 +610,13 @@ const AddWaterSource = () => {
       } catch (err) {
         console.warn("Could not update map marker position:", err);
       }
+    }
+
+    if (isValidLat && isValidLng) {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        validateCoordinates(lat, lng);
+      }, 400);
     }
   };
 
@@ -413,12 +719,21 @@ const AddWaterSource = () => {
 
       setUploadStatus("Sending water source details to Barangay...");
 
+      if (!locationValidation.isValid) {
+        setErrorMsg(
+          `Cannot submit: The chosen location is outside Barangay ${user?.barangay || "Abgao"}. Please place the pin inside your designated barangay.`
+        );
+        setIsSubmitting(false);
+        setUploadStatus("");
+        return;
+      }
+
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         category: "unregistered_source",
         type: "unregistered_source",
-        barangay: formData.barangay,
+        barangay: user?.barangay || "Combado",
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
         image_url: uploadedImageUrl,
@@ -439,13 +754,12 @@ const AddWaterSource = () => {
         setSuccessMsg(
           "Water source reported! Your Barangay Officials and Health Inspectors will review and verify this location for formal inspection."
         );
-        setFormData({
+        setFormData((prev) => ({
+          ...prev,
           title: "",
           description: "",
           barangay: user?.barangay || "Combado",
-          latitude: 10.1330,
-          longitude: 124.8700,
-        });
+        }));
         handleRemoveImage();
         fetchMySources();
       } else {
@@ -516,20 +830,17 @@ const AddWaterSource = () => {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-                Barangay Location
+                Designated Barangay
               </label>
-              <select
-                value={formData.barangay}
-                onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
-                required
-              >
-                {barangays.map((b) => (
-                  <option key={b} value={b}>
-                    Barangay {b}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full px-4 py-3 bg-slate-100/80 border border-slate-200 rounded-xl text-sm text-slate-800 font-semibold flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin size={16} className="text-blue-600 flex-shrink-0" />
+                  <span>Barangay {user?.barangay || "Combado"}</span>
+                </div>
+                <span className="text-[11px] font-medium text-slate-500 bg-white px-2.5 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                  Assigned Jurisdiction
+                </span>
+              </div>
             </div>
           </div>
 
@@ -569,6 +880,28 @@ const AddWaterSource = () => {
               </button>
             </div>
 
+            {/* Real-time Location Boundary Verification Status */}
+            {validatingLoc ? (
+              <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2 animate-pulse">
+                <Loader2 size={15} className="animate-spin text-blue-600 flex-shrink-0" />
+                <span>Verifying coordinates within Barangay {user?.barangay || "assigned area"}...</span>
+              </div>
+            ) : !locationValidation.isValid ? (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs flex items-center gap-2 shadow-2xs">
+                <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+                <span className="font-semibold">
+                  {locationValidation.detectedArea && locationValidation.detectedArea !== "Outside boundary"
+                    ? `Location is in Barangay ${locationValidation.detectedArea} (Outside Barangay ${user?.barangay || "Abgao"}). Please pin inside.`
+                    : `Location is outside Barangay ${user?.barangay || "Abgao"}. Please pin inside.`}
+                </span>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+                <span className="font-semibold">Location Verified: Inside Barangay {user?.barangay || "Community"}</span>
+              </div>
+            )}
+
             {/* Geolocation Warning / Feedback */}
             {geoError && (
               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
@@ -581,12 +914,53 @@ const AddWaterSource = () => {
             <div className="relative w-full h-80 rounded-2xl overflow-hidden border border-slate-300 shadow-md">
               <div ref={mapContainer} className="w-full h-full" />
               
-              {/* Floating GPS badge on map */}
-              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-xs font-mono shadow-md border border-white/10 pointer-events-none flex items-center gap-2 z-10">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                <span>
-                  Lat: {parseFloat(formData.latitude).toFixed(6)} | Lng: {parseFloat(formData.longitude).toFixed(6)}
+              {/* Map Style Selector (Streets / Satellite) */}
+              <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-md px-2 py-1.5 rounded-xl shadow-lg border border-slate-200/90 flex items-center gap-1 text-xs">
+                <div className="px-1 text-slate-400">
+                  <Layers size={14} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleMapStyleChange("mapbox://styles/mapbox/streets-v12")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    mapStyle === "mapbox://styles/mapbox/streets-v12"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  Streets
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMapStyleChange("mapbox://styles/mapbox/satellite-streets-v12")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    mapStyle === "mapbox://styles/mapbox/satellite-streets-v12"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  Satellite
+                </button>
+              </div>
+              
+
+              {/* Floating Boundary Badge & Focus Button on bottom-left of map */}
+              <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-slate-800 text-xs font-medium shadow-lg border border-slate-200/90 flex items-center gap-2.5 z-10">
+                <span className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border-2 border-sky-600 flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
                 </span>
+                <span className="font-semibold text-slate-700">
+                  Barangay {user?.barangay || "Abgao"} Boundary
+                </span>
+                <button
+                  type="button"
+                  onClick={handleFitToBoundary}
+                  className="ml-1 px-2.5 py-0.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold border border-sky-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Focus view on designated barangay boundary"
+                >
+                  <Maximize2 size={11} />
+                  <span>Fit Boundary</span>
+                </button>
               </div>
             </div>
 
@@ -717,15 +1091,35 @@ const AddWaterSource = () => {
           </div>
 
           {/* Submit Button */}
+          {/* Validation Warning above button if invalid */}
+          {!locationValidation.isValid && (
+            <div className="p-3.5 rounded-2xl bg-red-100/90 border border-red-300 text-red-900 text-xs flex items-center gap-2 font-medium">
+              <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+              <span>
+                Submission disabled: Selected location is outside Barangay {user?.barangay}. Please position the pin within your designated barangay to enable submission.
+              </span>
+            </div>
+          )}
+
+          {/* Submit Button */}
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full py-4 rounded-full bg-blue-900 hover:bg-blue-800 text-white font-semibold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer"
+            disabled={isSubmitting || !locationValidation.isValid || validatingLoc}
+            className={`w-full py-4 rounded-full font-semibold text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer ${
+              !locationValidation.isValid
+                ? "bg-slate-400 text-white cursor-not-allowed opacity-80 shadow-none"
+                : "bg-blue-900 hover:bg-blue-800 text-white hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70"
+            }`}
           >
             {isSubmitting ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
                 <span>{uploadStatus || "Submitting Water Source..."}</span>
+              </>
+            ) : !locationValidation.isValid ? (
+              <>
+                <AlertCircle size={16} />
+                <span>Cannot Submit — Location Outside Brgy. {user?.barangay || "Designated Barangay"}</span>
               </>
             ) : (
               <>
@@ -762,10 +1156,11 @@ const AddWaterSource = () => {
         ) : (
           <div className="space-y-3">
             {mySources.map((r) => {
-              const isPending = !r.status || r.status === "pending";
-              const isEscalated = r.status === "escalated";
-              const isValidated = r.status === "validated";
-              const isRejected = r.status === "rejected" || r.status === "dismissed";
+              const isEscalated = r.status === "escalated" || r.status === "passed_to_chu";
+              const isDone = r.status === "done" || r.status === "resolved" || r.status === "completed";
+              const isDismissed = r.status === "dismissed" || r.status === "rejected";
+              const isPending = !isEscalated && !isDone && !isDismissed;
+              const canDelete = !r.status || r.status === "pending";
               const displayDesc = cleanDesc(r) || r.description;
 
               return (
@@ -813,7 +1208,7 @@ const AddWaterSource = () => {
                       <span>View</span>
                     </button>
 
-                    {isPending && (
+                    {canDelete && (
                       <button
                         type="button"
                         onClick={() => handleDeleteSource(r.id)}
@@ -826,26 +1221,25 @@ const AddWaterSource = () => {
                       </button>
                     )}
 
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                      isPending
-                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                        : isEscalated
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                      isEscalated
                         ? "bg-purple-100 text-purple-800 border border-purple-200"
-                        : isValidated
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                        : "bg-slate-200 text-slate-700"
+                        : isDone
+                        ? "bg-blue-100 text-blue-800 border border-blue-200"
+                        : isDismissed
+                        ? "bg-rose-100 text-rose-800 border border-rose-200"
+                        : "bg-amber-100 text-amber-800 border border-amber-200"
                     }`}>
-                      {isPending && <Clock size={12} />}
-                      {isEscalated && <Send size={12} />}
-                      {isValidated && <CheckCircle2 size={12} />}
+                      {isPending && <Clock size={11} />}
+                      {isEscalated && <Send size={11} />}
                       <span>
-                        {isPending
-                          ? "Pending Barangay Review"
-                          : isEscalated
+                        {isEscalated
                           ? "Passed to CHU"
-                          : isValidated
-                          ? "Validated & Verified"
-                          : "Dismissed"}
+                          : isDone
+                          ? "Done"
+                          : isDismissed
+                          ? "Dismissed"
+                          : "Pending Barangay Review"}
                       </span>
                     </span>
                   </div>

@@ -68,13 +68,7 @@ const MyBarangay = () => {
             to="/portal/submit-concern"
             className="px-5 py-2.5 rounded-full bg-white text-blue-900 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
           >
-            Report an Issue
-          </Link>
-          <Link
-            to="/portal/request-inspection"
-            className="px-5 py-2.5 rounded-full bg-blue-800/80 hover:bg-blue-800 text-white border border-white/20 font-semibold text-xs transition-all shadow hover:shadow-lg hover:-translate-y-0.5 text-center"
-          >
-            Request Inspection
+            Submit Concern / Request
           </Link>
         </div>
       </div>
@@ -142,14 +136,13 @@ const MyBarangay = () => {
                   <th className="py-3.5 px-4">Station Name</th>
                   <th className="py-3.5 px-4">Type</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4">E. Coli</th>
-                  <th className="py-3.5 px-4">Coliform</th>
+                  <th className="py-3.5 px-4">E. Coli Presence</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {sources.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center py-8 text-slate-400">
+                    <td colSpan="4" className="text-center py-8 text-slate-400">
                       {loading ? "Loading water sources..." : "No water sources registered for this barangay yet."}
                     </td>
                   </tr>
@@ -158,6 +151,8 @@ const MyBarangay = () => {
                     const statusStr = (s.status || s.water_status || "safe").toLowerCase();
                     const isSafe = statusStr === "safe";
                     const isWarning = statusStr === "warning";
+                    const isUnknown = statusStr === "unknown";
+                    const hasEColi = Boolean(s.e_coli || (s.e_coli_count && Number(s.e_coli_count) > 0) || statusStr === "undrinkable");
 
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
@@ -165,13 +160,30 @@ const MyBarangay = () => {
                         <td className="py-3.5 px-4 text-slate-600 capitalize">{(s.source_type || s.type || "Well").replace(/_/g, " ")}</td>
                         <td className="py-3.5 px-4">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            isSafe ? "bg-emerald-100 text-emerald-800" : isWarning ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800"
+                            isSafe 
+                              ? "bg-emerald-100 text-emerald-800" 
+                              : isWarning 
+                              ? "bg-amber-100 text-amber-800" 
+                              : isUnknown
+                              ? "bg-slate-100 text-slate-700 border border-slate-200"
+                              : "bg-red-100 text-red-800"
                           }`}>
-                            {s.status || s.water_status || "Unknown"}
+                            {isUnknown ? "Unknown" : (s.status || s.water_status || "Unknown")}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{s.e_coli_count ?? (s.e_coli ? "Positive" : "0 CFU")}</td>
-                        <td className="py-3.5 px-4 text-slate-700 font-medium">{s.coliform_count ?? (s.coliform_bacteria ? "Positive" : "0 MPN")}</td>
+                        <td className="py-3.5 px-4">
+                          {hasEColi ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 border border-red-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                              Present
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              Not Present
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })

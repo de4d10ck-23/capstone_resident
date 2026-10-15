@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { 
   MessageSquare, 
@@ -11,9 +12,9 @@ import {
   Clock, 
   RefreshCw, 
   Eye, 
-  Trash2 
+  Trash2,
+  Droplets
 } from "lucide-react";
-import { MAASIN_BARANGAYS as barangays } from "../constants/barangays";
 import ReportDetailModal from "../components/ReportDetailModal";
 
 const extractPhotoProof = (r) => {
@@ -32,20 +33,63 @@ const cleanDesc = (r) => {
   if (!r) return "";
   if (r.clean_description) return r.clean_description;
   if (r.description) {
-    return r.description.replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "").trim();
+    return r.description
+      .replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "")
+      .replace(/\[Inspected Source:[^\]]+\]\s*/gi, "")
+      .trim();
   }
   return "";
 };
 
 const SubmitConcern = () => {
   const { user, token, API_URL } = useAuth();
+  const [searchParams] = useSearchParams();
+  const initialCategory = searchParams.get("category") || "request_inspection";
   
   const [formData, setFormData] = useState({
-    title: "",
     description: "",
-    barangay: user?.barangay || "Combado",
-    category: "water_quality",
+    category: initialCategory,
   });
+
+  const [locations, setLocations] = useState([]);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState("");
+
+  useEffect(() => {
+    const cat = searchParams.get("category");
+    if (cat) {
+      setFormData((prev) => ({ ...prev, category: cat }));
+    }
+  }, [searchParams]);
+
+  // Fetch water sources available ONLY for the resident's designated barangay
+  useEffect(() => {
+    const fetchBarangayLocations = async () => {
+      if (!user?.barangay) return;
+      try {
+        setLoadingLocations(true);
+        const res = await fetch(`${API_URL}/water-locations?barangay=${encodeURIComponent(user.barangay)}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          // Strictly filter so only water sources from resident's designated barangay appear
+          const designatedLocs = data.data.filter(
+            (l) => !l.barangay || l.barangay.toLowerCase() === user.barangay.toLowerCase()
+          );
+          setLocations(designatedLocs);
+        }
+      } catch (err) {
+        console.error("Error fetching water sources for designated barangay:", err);
+      } finally {
+        setLoadingLocations(false);
+      }
+    };
+
+    fetchBarangayLocations();
+  }, [user?.barangay, API_URL]);
+
+  const handleLocationChange = (locId) => {
+    setSelectedLocationId(locId);
+  };
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -199,16 +243,35 @@ const SubmitConcern = () => {
         }
       }
 
-      setUploadStatus("Sending concern to Barangay...");
+      setUploadStatus("Sending report to Barangay...");
+
+      const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
+      
+      const fullDesc = formData.description.trim();
+
+      const categoryTitles = {
+        request_inspection: "Water Inspection Request",
+        water_quality: "Water Quality Concern",
+        broken_pipe: "Damaged / Broken Pipeline",
+        toilet_proximity: "Unhygienic Toilet Proximity",
+        other: "Community Water Concern",
+      };
+
+      let autoTitle = categoryTitles[formData.category] || "Community Concern";
+      if (selectedLoc) {
+        autoTitle = `${autoTitle} - ${selectedLoc.full_name || selectedLoc.name}`;
+      } else if (user?.barangay) {
+        autoTitle = `${autoTitle} (Brgy. ${user.barangay})`;
+      }
 
       const payload = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
+        title: autoTitle,
+        description: fullDesc,
         category: formData.category,
         type: formData.category,
-        barangay: formData.barangay,
-        latitude: null,
-        longitude: null,
+        barangay: user?.barangay || "Combado",
+        latitude: selectedLoc?.latitude ? parseFloat(selectedLoc.latitude) : null,
+        longitude: selectedLoc?.longitude ? parseFloat(selectedLoc.longitude) : null,
         image_url: uploadedImageUrl,
         photo_url: uploadedImageUrl,
       };
@@ -225,21 +288,20 @@ const SubmitConcern = () => {
       const data = await res.json();
       if (data.success) {
         setSuccessMsg(
-          "Concern submitted! Your Barangay Officials will review and endorse this directly to Sanitization Inspectors."
+          "Concern / inspection request submitted! Your Barangay Officials will review and endorse this directly to Sanitization Inspectors."
         );
         setFormData({
-          title: "",
           description: "",
-          barangay: user?.barangay || "Combado",
-          category: "water_quality",
+          category: "request_inspection",
         });
+        setSelectedLocationId("");
         handleRemoveImage();
         fetchMyReports();
       } else {
-        setErrorMsg(data.detail || "Failed to submit concern. Please try again.");
+        setErrorMsg(data.detail || "Failed to submit report. Please try again.");
       }
     } catch (err) {
-      console.error("Error submitting resident concern:", err);
+      console.error("Error submitting resident report:", err);
       setErrorMsg("Network connection error. Could not reach the server.");
     } finally {
       setIsSubmitting(false);
@@ -253,10 +315,10 @@ const SubmitConcern = () => {
       <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-center gap-3 mb-2">
           <MessageSquare size={24} className="text-cyan-300" />
-          <h1 className="text-3xl font-extrabold text-white">Submit Community Concern</h1>
+          <h1 className="text-3xl font-extrabold text-white">Submit Concern & Inspection Request</h1>
         </div>
         <p className="text-white/80 text-sm max-w-xl">
-          Report broken water pipes, unhygienic toilet proximity, contaminated supplies, or water sanitation hazards directly to your Barangay Officials for review and inspection triage.
+          Report broken water pipes, unhygienic toilet proximity, contaminated supplies, or request water quality inspections directly to your Barangay Officials for triage.
         </p>
       </div>
 
@@ -284,56 +346,63 @@ const SubmitConcern = () => {
 
       {/* Main Form Container */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
-        <h2 className="text-base font-bold text-slate-900 mb-4">New Concern Details</h2>
+        <h2 className="text-base font-bold text-slate-900 mb-4">New Concern or Inspection Details</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Category & Conditional Water Source (half-width if inspection, full-width otherwise) */}
+          <div className={formData.category === "request_inspection" ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "space-y-6"}>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-                Concern Subject / Title
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="e.g. Brown water coming out of tap on Rizal St."
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-                Concern Category
+                Concern / Request Category
               </label>
               <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => {
+                  const nextCat = e.target.value;
+                  setFormData({ ...formData, category: nextCat });
+                  if (nextCat !== "request_inspection") {
+                    setSelectedLocationId("");
+                  }
+                }}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
               >
+                <option value="request_inspection">Water Inspection Request (Field Audit / Sampling)</option>
                 <option value="water_quality">Water Quality (Odor, Color, Taste)</option>
                 <option value="broken_pipe">Damaged / Broken Pipeline</option>
                 <option value="toilet_proximity">Unhygienic Toilet Near Water Source</option>
                 <option value="other">Other Community Health Issue</option>
               </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-              Barangay Location
-            </label>
-            <select
-              value={formData.barangay}
-              onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
-              required
-            >
-              {barangays.map((b) => (
-                <option key={b} value={b}>
-                  Barangay {b}
-                </option>
-              ))}
-            </select>
+            {formData.category === "request_inspection" && (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Droplets size={13} className="text-cyan-600" />
+                    <span>Water Source in Brgy. {user?.barangay || "Community"}</span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full lowercase">
+                    {loadingLocations ? "loading..." : `${locations.length} available`}
+                  </span>
+                </label>
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => handleLocationChange(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+                >
+                  <option value="">-- General Tap / Household / Unlisted Source in Brgy. {user?.barangay} --</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.full_name || loc.name} ({loc.source_type?.replace(/_/g, " ") || loc.type?.replace(/_/g, " ") || "Station"})
+                    </option>
+                  ))}
+                </select>
+                {locations.length === 0 && !loadingLocations && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    No public stations listed in Brgy. {user?.barangay}. You can still request an inspection for your general household tap.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -445,7 +514,7 @@ const SubmitConcern = () => {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
         <div className="flex justify-between items-center pb-2 border-b border-slate-100">
           <div>
-            <h2 className="text-base font-bold text-slate-900">My Submitted Concerns</h2>
+            <h2 className="text-base font-bold text-slate-900">My Submitted Concerns & Requests</h2>
             <p className="text-xs text-slate-500">Track real-time progress as your Barangay and Inspectors process your reports</p>
           </div>
           <button
@@ -461,15 +530,16 @@ const SubmitConcern = () => {
           <div className="text-center py-8 text-slate-400 text-xs">Loading submission status...</div>
         ) : myReports.length === 0 ? (
           <div className="text-center py-8 text-slate-400 text-xs">
-            You haven't submitted any concerns yet.
+            You haven't submitted any concerns or inspection requests yet.
           </div>
         ) : (
           <div className="space-y-3">
             {myReports.map((r) => {
-              const isPending = !r.status || r.status === "pending";
-              const isEscalated = r.status === "escalated";
-              const isValidated = r.status === "validated";
-              const isRejected = r.status === "rejected" || r.status === "dismissed";
+              const isEscalated = r.status === "escalated" || r.status === "passed_to_chu";
+              const isDone = r.status === "done" || r.status === "resolved" || r.status === "completed";
+              const isDismissed = r.status === "dismissed" || r.status === "rejected";
+              const isPending = !isEscalated && !isDone && !isDismissed;
+              const canDelete = !r.status || r.status === "pending";
               const photo = extractPhotoProof(r);
               const displayDesc = cleanDesc(r) || r.description;
 
@@ -481,7 +551,11 @@ const SubmitConcern = () => {
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-sm text-slate-900">{r.title}</h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white border border-slate-200 text-slate-600 capitalize">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${
+                        (r.type || r.category) === "request_inspection"
+                          ? "bg-cyan-50 border-cyan-200 text-cyan-800"
+                          : "bg-white border-slate-200 text-slate-600"
+                      }`}>
                         {(r.type || r.category || "Concern").replace(/_/g, " ")}
                       </span>
                     </div>
@@ -510,7 +584,7 @@ const SubmitConcern = () => {
                       <span>View</span>
                     </button>
 
-                    {isPending && (
+                    {canDelete && (
                       <button
                         type="button"
                         onClick={() => handleDeleteConcern(r.id)}
@@ -523,26 +597,25 @@ const SubmitConcern = () => {
                       </button>
                     )}
 
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-                      isPending
-                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                        : isEscalated
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                      isEscalated
                         ? "bg-purple-100 text-purple-800 border border-purple-200"
-                        : isValidated
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                        : "bg-slate-200 text-slate-700"
+                        : isDone
+                        ? "bg-blue-100 text-blue-800 border border-blue-200"
+                        : isDismissed
+                        ? "bg-rose-100 text-rose-800 border border-rose-200"
+                        : "bg-amber-100 text-amber-800 border border-amber-200"
                     }`}>
-                      {isPending && <Clock size={12} />}
-                      {isEscalated && <Send size={12} />}
-                      {isValidated && <CheckCircle2 size={12} />}
+                      {isPending && <Clock size={11} />}
+                      {isEscalated && <Send size={11} />}
                       <span>
-                        {isPending
-                          ? "Pending Barangay Review"
-                          : isEscalated
+                        {isEscalated
                           ? "Passed to CHU"
-                          : isValidated
-                          ? "Validated & Verified"
-                          : "Dismissed"}
+                          : isDone
+                          ? "Done"
+                          : isDismissed
+                          ? "Dismissed"
+                          : "Pending Barangay Review"}
                       </span>
                     </span>
                   </div>

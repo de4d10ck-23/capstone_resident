@@ -13,7 +13,6 @@ import PublicMap from './pages/PublicMap';
 // Protected Pages (Resident Portal)
 import MyBarangay from './pages/MyBarangay';
 import Notifications from './pages/Notifications';
-import RequestInspection from './pages/RequestInspection';
 import SubmitConcern from './pages/SubmitConcern';
 import AddWaterSource from './pages/AddWaterSource';
 
@@ -36,7 +35,7 @@ function App() {
             <Route path="my-barangay" element={<MyBarangay />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="add-water-source" element={<AddWaterSource />} />
-            <Route path="request-inspection" element={<RequestInspection />} />
+            <Route path="request-inspection" element={<Navigate to="/portal/submit-concern?category=request_inspection" replace />} />
             <Route path="submit-concern" element={<SubmitConcern />} />
           </Route>
           
