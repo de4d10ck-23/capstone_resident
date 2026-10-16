@@ -247,7 +247,10 @@ const SubmitConcern = () => {
 
       const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
       
-      const fullDesc = formData.description.trim();
+      let fullDesc = formData.description.trim();
+      if (selectedLoc) {
+        fullDesc = `${fullDesc}\n\n[Inspected Source: ${selectedLoc.full_name || selectedLoc.name} (ID: ${selectedLoc.id})]`;
+      }
 
       const categoryTitles = {
         request_inspection: "Water Inspection Request",

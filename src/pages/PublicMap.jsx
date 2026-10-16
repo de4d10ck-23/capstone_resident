@@ -662,7 +662,7 @@ const PublicMap = () => {
               className={`fixed sm:fixed z-40 bg-white transition-all duration-300 ease-out flex flex-col shadow-2xl border-slate-200 overflow-hidden
                 /* Mobile: Docked Bottom Sheet */
                 bottom-0 left-0 right-0 rounded-t-3xl border-t
-                ${sheetExpanded ? "h-[85vh]" : "h-[320px]"}
+                ${sheetExpanded ? "h-[calc(100dvh-5rem)]" : "h-[290px]"}
                 /* Desktop: Floating Corner Card */
                 sm:bottom-6 sm:right-6 sm:left-auto sm:w-96 sm:h-auto sm:max-h-[85vh] sm:rounded-3xl sm:border
               `}
@@ -850,7 +850,7 @@ const PublicMap = () => {
                 </div>
 
                 {/* Photo Preview Banner / Strip */}
-                {locPhotos.length > 0 && (
+                {locPhotos.length > 0 ? (
                   <div>
                     <div
                       className="relative rounded-2xl overflow-hidden border border-slate-200 group cursor-pointer shadow-xs hover:shadow-md transition-all"
@@ -867,7 +867,7 @@ const PublicMap = () => {
                       <img
                         src={locPhotos[0]}
                         alt={selectedLocation.name}
-                        className="w-full h-40 object-cover transition-transform duration-300 group-hover:scale-105"
+                        className="w-full h-48 sm:h-40 object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end justify-between p-3">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/95 backdrop-blur-md text-[11px] font-bold text-slate-900 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -906,7 +906,13 @@ const PublicMap = () => {
                       </div>
                     )}
                   </div>
-                )}
+                ) : sheetExpanded ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-6 flex flex-col items-center justify-center text-center text-slate-400">
+                    <ImageIcon size={26} className="text-slate-300 mb-1.5" />
+                    <p className="text-xs font-semibold text-slate-600">No photos available for this station</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Photos uploaded by inspectors or staff will appear here</p>
+                  </div>
+                ) : null}
 
 
               </div>

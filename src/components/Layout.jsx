@@ -204,14 +204,13 @@ const Layout = () => {
             >
               <Menu size={20} />
             </button>
-            <span className="text-xs sm:text-sm font-semibold text-slate-700 truncate">Resident Community Portal</span>
           </div>
 
           <div className="flex items-center gap-3 sm:gap-4">
             {/* View Public Map Button */}
             <Link
               to="/public-map"
-              className="inline-flex items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-white px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm hover:shadow hover:-translate-y-0.5"
+              className="inline-flex items-center gap-1.5 bg-blue-900 hover:bg-blue-800 text-white px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all shadow-sm hover:shadow shrink-0 whitespace-nowrap"
             >
               <MapPin size={14} />
               <span>View Public Map</span>
