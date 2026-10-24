@@ -20,14 +20,6 @@ import usePushNotifications from "../hooks/usePushNotifications";
 const Notifications = () => {
   const { user, token, API_URL } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [readIds, setReadIds] = useState(() => {
-    try {
-      const stored = localStorage.getItem(`waterwatch_read_notifs_${user?.id || "guest"}`);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all"); // 'all', 'unread', 'critical'
 
@@ -45,20 +37,9 @@ const Notifications = () => {
     setPushLoading(true);
     setPushStatusMsg("");
     try {
-      // Ensure we have a fresh, verified subscription registered on the server for this user & barangay
       const ok = await subscribeToPush(user?.barangay);
       if (ok) {
-        // Dispatch test push to verify delivery to this device
-        const res = await fetch(`${API_URL}/notifications/test-push`, {
-          method: "POST",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await res.json();
-        if (data.details && data.details.sent > 0) {
-          setPushStatusMsg(`🔔 Push active! Test alert delivered to ${data.details.sent} device(s). Check your notification bar!`);
-        } else {
-          setPushStatusMsg("Device successfully registered for push alerts!");
-        }
+        setPushStatusMsg("Device successfully registered for push alerts!");
         setTimeout(() => setPushStatusMsg(""), 5000);
       } else {
         setPushStatusMsg("Failed to activate push. Please allow notifications in phone settings.");
@@ -73,15 +54,10 @@ const Notifications = () => {
     }
   };
 
-  const storageKey = `waterwatch_read_notifs_${user?.id || "guest"}`;
-
-  const notifyUnreadChange = (updatedReadIds, count) => {
+  const notifyUnreadChange = (count) => {
     window.dispatchEvent(
       new CustomEvent("waterwatch_notifications_read", {
-        detail: {
-          readIds: updatedReadIds,
-          unreadCount: count
-        }
+        detail: { unreadCount: count }
       })
     );
   };
@@ -90,17 +66,15 @@ const Notifications = () => {
     try {
       setLoading(true);
       const res = await fetch(`${API_URL}/notifications`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setNotifications(data.data);
-        const stored = localStorage.getItem(storageKey);
-        const currentRead = stored ? JSON.parse(stored) : readIds;
-        const remainingUnread = data.data.filter((n) => !currentRead.includes(n.id)).length;
-        notifyUnreadChange(currentRead, remainingUnread);
+        const unread = typeof data.unread_count === "number"
+          ? data.unread_count
+          : data.data.filter((n) => !n.is_read).length;
+        notifyUnreadChange(unread);
       }
     } catch (err) {
       console.error("Error fetching notifications:", err);
@@ -113,53 +87,55 @@ const Notifications = () => {
     fetchNotifications();
   }, [API_URL, token]);
 
-  // Mark single notification as read
+  // Mark single notification as read in database
   const handleMarkAsRead = async (id, e) => {
     if (e && e.stopPropagation) e.stopPropagation();
-    if (readIds.includes(id)) return;
 
-    const updated = [...readIds, id];
-    setReadIds(updated);
-    localStorage.setItem(storageKey, JSON.stringify(updated));
+    // Optimistically mark as read in local state
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+    );
 
-    const remainingUnread = notifications.filter((n) => !updated.includes(n.id)).length;
-    notifyUnreadChange(updated, remainingUnread);
+    const remainingUnread = notifications.filter((n) => n.id !== id && !n.is_read).length;
+    notifyUnreadChange(remainingUnread);
 
     try {
       await fetch(`${API_URL}/notifications/${id}/read`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
     } catch (err) {
       console.error("Failed to sync read status with backend:", err);
     }
   };
 
-  // Mark all notifications as read
+  // Mark all notifications as read in database
   const handleMarkAllAsRead = async () => {
-    const allIds = notifications.map((n) => n.id);
-    const updated = Array.from(new Set([...readIds, ...allIds]));
-    setReadIds(updated);
-    localStorage.setItem(storageKey, JSON.stringify(updated));
-
-    notifyUnreadChange(updated, 0);
+    // Optimistically mark all read in local state
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    notifyUnreadChange(0);
 
     try {
       await fetch(`${API_URL}/notifications/read-all`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
     } catch (err) {
       console.error("Failed to sync read-all with backend:", err);
     }
   };
 
-  const isRead = (id) => readIds.includes(id);
+  const isRead = (itemOrId) => {
+    if (!itemOrId) return false;
+    if (typeof itemOrId === "object") return Boolean(itemOrId.is_read);
+    const found = notifications.find((n) => n.id === itemOrId);
+    return Boolean(found?.is_read);
+  };
 
-  const unreadCount = notifications.filter((n) => !isRead(n.id)).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const filteredNotifications = notifications.filter((n) => {
-    if (filter === "unread") return !isRead(n.id);
+    if (filter === "unread") return !n.is_read;
     if (filter === "critical") return n.type === "critical" || n.type === "warning";
     return true;
   });
@@ -234,21 +210,17 @@ const Notifications = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-shrink-0 w-full sm:w-auto">
-          {isSupported && (
+          {isSupported && !isSubscribed && (
             <button
               type="button"
               onClick={handlePushAction}
               disabled={pushLoading}
-              className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold shadow-md transition-all cursor-pointer ${
-                isSubscribed
-                  ? "bg-emerald-400/20 text-emerald-200 border border-emerald-400/40 hover:bg-emerald-400/30"
-                  : "bg-cyan-400 hover:bg-cyan-300 text-slate-950"
-              }`}
-              title={isSubscribed ? "Push alerts are active. Tap to test push notification on this device." : "Tap to enable sound/vibration alerts on this device."}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold shadow-md transition-all cursor-pointer bg-cyan-400 hover:bg-cyan-300 text-slate-950"
+              title="Tap to enable sound/vibration alerts on this device."
             >
-              <Bell size={15} className={isSubscribed ? "text-emerald-300 animate-pulse" : "text-slate-950"} />
+              <Bell size={15} className="text-slate-950" />
               <span>
-                {pushLoading ? "Connecting..." : isSubscribed ? "Push Active (Send Test)" : "Enable Push Alerts"}
+                {pushLoading ? "Connecting..." : "Enable Push Alerts"}
               </span>
             </button>
           )}
@@ -349,7 +321,7 @@ const Notifications = () => {
           </div>
         ) : (
           filteredNotifications.map((n) => {
-            const read = isRead(n.id);
+            const read = Boolean(n.is_read);
             const details = getTypeDetails(n.type);
 
             return (

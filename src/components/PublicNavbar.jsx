@@ -5,9 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import usePushNotifications from '../hooks/usePushNotifications';
 
 const PublicNavbar = () => {
-  const { user } = useAuth();
+  const { user, API_URL } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { canInstall, isStandalone, isInstalled, promptInstall } = usePushNotifications();
+  const { canInstall, isStandalone, isInstalled, promptInstall } = usePushNotifications(API_URL, user);
 
   useEffect(() => {
     if (mobileMenuOpen) {

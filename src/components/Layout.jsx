@@ -41,19 +41,16 @@ const Layout = () => {
     }
   };
 
-  // Fetch and sync unread count in real time
+  // Fetch and sync unread count in real time directly from backend database
   useEffect(() => {
     const fetchUnread = async () => {
       try {
-        const res = await fetch(`${API_URL}/notifications`, {
+        const res = await fetch(`${API_URL}/notifications/unread-count`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         const data = await res.json();
-        if (data.success && Array.isArray(data.data)) {
-          const stored = localStorage.getItem(`waterwatch_read_notifs_${user?.id || "guest"}`);
-          const readIds = stored ? JSON.parse(stored) : [];
-          const unread = data.data.filter((n) => !readIds.includes(n.id)).length;
-          setUnreadCount(unread);
+        if (data.success && typeof data.unread_count === "number") {
+          setUnreadCount(data.unread_count);
         }
       } catch (err) {
         console.error("Error fetching unread notifications count:", err);
@@ -72,14 +69,12 @@ const Layout = () => {
 
     window.addEventListener("waterwatch_notifications_read", handleNotificationsUpdate);
     window.addEventListener("waterwatch_notifications_updated", handleNotificationsUpdate);
-    window.addEventListener("storage", fetchUnread);
 
-    const interval = setInterval(fetchUnread, 20000); // Periodic background sync
+    const interval = setInterval(fetchUnread, 15000); // Periodic background sync
 
     return () => {
       window.removeEventListener("waterwatch_notifications_read", handleNotificationsUpdate);
       window.removeEventListener("waterwatch_notifications_updated", handleNotificationsUpdate);
-      window.removeEventListener("storage", fetchUnread);
       clearInterval(interval);
     };
   }, [API_URL, token, user?.id]);

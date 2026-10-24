@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Helper to convert VAPID public key string into Uint8Array for PushManager
 function urlBase64ToUint8Array(base64String) {
@@ -13,11 +13,13 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export const usePushNotifications = (apiUrl, user = null) => {
+  const resolvedApiUrl = apiUrl || (typeof window !== 'undefined' ? (window.__API_URL__ || import.meta.env?.VITE_API_URL) : '') || 'http://localhost:8080/api';
   const [isSupported, setIsSupported] = useState(false);
   const [permission, setPermission] = useState('default');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const subscribeRef = useRef(null);
 
   // PWA Install states
   const checkStandalone = () => {
@@ -102,9 +104,9 @@ export const usePushNotifications = (apiUrl, user = null) => {
 
           // If browser already has notification permission granted but no active PushManager subscription,
           // automatically create the subscription so the phone starts receiving alerts immediately
-          if (!subscription && Notification.permission === 'granted' && apiUrl) {
+          if (!subscription && Notification.permission === 'granted' && resolvedApiUrl) {
             try {
-              const keyRes = await fetch(`${apiUrl}/notifications/vapid-public-key`);
+              const keyRes = await fetch(`${resolvedApiUrl}/notifications/vapid-public-key`);
               const keyData = await keyRes.json();
               if (keyData.success && keyData.publicKey) {
                 const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
@@ -121,9 +123,9 @@ export const usePushNotifications = (apiUrl, user = null) => {
           setIsSubscribed(!!subscription);
 
           // Silently sync subscription to backend with current user and barangay
-          if (subscription && apiUrl) {
+          if (subscription && resolvedApiUrl) {
             try {
-              await fetch(`${apiUrl}/notifications/subscribe`, {
+              await fetch(`${resolvedApiUrl}/notifications/subscribe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -147,6 +149,35 @@ export const usePushNotifications = (apiUrl, user = null) => {
       setCanInstall(true);
     }
 
+    // Auto-ask permission when launched as an installed PWA (no button click needed)
+    if (alreadyInstalled && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      // 1. Direct prompt attempt
+      const timer = setTimeout(() => {
+        subscribeRef.current?.().catch(() => {});
+      }, 1200);
+
+      // 2. Gesture fallback on very first screen interaction
+      const autoPromptOnFirstTap = () => {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+          subscribeRef.current?.().catch(() => {});
+        }
+        window.removeEventListener('pointerdown', autoPromptOnFirstTap);
+        window.removeEventListener('touchstart', autoPromptOnFirstTap);
+        window.removeEventListener('click', autoPromptOnFirstTap);
+      };
+
+      window.addEventListener('pointerdown', autoPromptOnFirstTap, { passive: true, once: true });
+      window.addEventListener('touchstart', autoPromptOnFirstTap, { passive: true, once: true });
+      window.addEventListener('click', autoPromptOnFirstTap, { passive: true, once: true });
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('pointerdown', autoPromptOnFirstTap);
+        window.removeEventListener('touchstart', autoPromptOnFirstTap);
+        window.removeEventListener('click', autoPromptOnFirstTap);
+      };
+    }
+
     // PWA beforeinstallprompt handler
     const handleBeforeInstall = (e) => {
       e.preventDefault();
@@ -168,6 +199,15 @@ export const usePushNotifications = (apiUrl, user = null) => {
       try {
         localStorage.setItem('waterwatch_pwa_installed', 'true');
       } catch {}
+
+      // Automatically request notification permission right after installation completes!
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        setTimeout(() => {
+          subscribeRef.current?.().catch((err) => {
+            console.warn('[Push] Auto-subscribe on appinstalled:', err);
+          });
+        }, 500);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
@@ -177,7 +217,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, [apiUrl, user?.id, user?.barangay]);
+  }, [resolvedApiUrl, user?.id, user?.barangay]);
 
   // Trigger PWA installation prompt
   const promptInstall = useCallback(async () => {
@@ -194,6 +234,16 @@ export const usePushNotifications = (apiUrl, user = null) => {
           localStorage.setItem('waterwatch_pwa_installed', 'true');
         } catch {}
         if (typeof window !== 'undefined') window.__deferredPrompt = null;
+
+        // User just confirmed installation -> automatically request notification permission without waiting for any button click!
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+          setTimeout(() => {
+            subscribeRef.current?.().catch((err) => {
+              console.warn('[Push] Auto-subscribe after install prompt accepted:', err);
+            });
+          }, 600);
+        }
+
         return true;
       }
     } catch (err) {
@@ -224,7 +274,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
       }
 
       // 2. Fetch VAPID public key from backend
-      const keyRes = await fetch(`${apiUrl}/notifications/vapid-public-key`);
+      const keyRes = await fetch(`${resolvedApiUrl}/notifications/vapid-public-key`);
       const keyData = await keyRes.json();
 
       if (!keyData.success || !keyData.publicKey) {
@@ -258,7 +308,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
         barangay: customBarangay || user?.barangay || null,
       };
 
-      const saveRes = await fetch(`${apiUrl}/notifications/subscribe`, {
+      const saveRes = await fetch(`${resolvedApiUrl}/notifications/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subPayload),
@@ -278,7 +328,10 @@ export const usePushNotifications = (apiUrl, user = null) => {
       setLoading(false);
       return false;
     }
-  }, [apiUrl, isSupported, user]);
+  }, [resolvedApiUrl, isSupported, user]);
+
+  // Keep subscribeRef pointing to the latest subscribeToPush function
+  subscribeRef.current = subscribeToPush;
 
   // Unsubscribe
   const unsubscribeFromPush = useCallback(async () => {
@@ -291,7 +344,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
 
       if (subscription) {
         await subscription.unsubscribe();
-        await fetch(`${apiUrl}/notifications/unsubscribe`, {
+        await fetch(`${resolvedApiUrl}/notifications/unsubscribe`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: subscription.endpoint }),
@@ -307,19 +360,19 @@ export const usePushNotifications = (apiUrl, user = null) => {
       setLoading(false);
       return false;
     }
-  }, [apiUrl, isSupported]);
+  }, [resolvedApiUrl, isSupported]);
 
   // Dispatch a test push notification to this device
   const testPush = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/notifications/test-push`, { method: "POST" });
+      const res = await fetch(`${resolvedApiUrl}/notifications/test-push`, { method: "POST" });
       const data = await res.json();
       return data;
     } catch (err) {
       console.error('[Push] Test push error:', err);
       return { success: false, message: err.message };
     }
-  }, [apiUrl]);
+  }, [resolvedApiUrl]);
 
   return {
     isSupported,
