@@ -152,7 +152,7 @@ const Layout = () => {
           </div>
         </div>
 
-        {!isInstalled && !isStandalone && canInstall && (
+        {!isStandalone && (
           <div className="mx-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl space-y-2">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-blue-600 text-white rounded-lg shadow-sm">
@@ -164,7 +164,12 @@ const Layout = () => {
               Add to your home screen for quick offline access and real-time alerts.
             </p>
             <button
-              onClick={promptInstall}
+              onClick={async () => {
+                const ok = await promptInstall();
+                if (!ok) {
+                  alert("To install WaterWatch: click the Install icon (⊕) in your browser's address bar, or open the browser menu (⋮) and select 'Install WaterWatch' or 'Add to Home Screen'.");
+                }
+              }}
               className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Download size={13} />
