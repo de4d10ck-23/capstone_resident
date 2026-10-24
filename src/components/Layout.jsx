@@ -21,7 +21,25 @@ const Layout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
 
-  const { canInstall, promptInstall, isStandalone, isInstalled } = usePushNotifications(API_URL, user);
+  const { 
+    canInstall, 
+    promptInstall, 
+    isStandalone, 
+    isInstalled,
+    isSubscribed,
+    permission,
+    loading: pushLoading,
+    subscribeToPush,
+  } = usePushNotifications(API_URL, user);
+
+  const [pushStatusMsg, setPushStatusMsg] = useState("");
+  const handleEnablePush = async () => {
+    const success = await subscribeToPush();
+    if (success) {
+      setPushStatusMsg("Push alerts successfully enabled on this device!");
+      setTimeout(() => setPushStatusMsg(""), 4000);
+    }
+  };
 
   // Fetch and sync unread count in real time
   useEffect(() => {
@@ -236,6 +254,35 @@ const Layout = () => {
           </div>
         </header>
         
+        {/* Push Notification Activation Banner (For Mobile/PWA) */}
+        {user && !isSubscribed && permission !== 'denied' && (
+          <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 text-white px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md z-10 animate-fade-in shrink-0">
+            <div className="flex items-center gap-2.5 text-xs">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Bell size={16} className="animate-pulse text-amber-300" />
+              </div>
+              <div>
+                <p className="font-bold leading-tight">Turn On Boil-Water & Contamination Push Alerts</p>
+                <p className="text-[11px] text-blue-100 leading-tight">
+                  Get instant phone notifications when drinking water in Brgy. {user?.barangay || "your area"} is flagged
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleEnablePush}
+              disabled={pushLoading}
+              className="w-full sm:w-auto px-4 py-1.5 bg-white hover:bg-blue-50 text-blue-800 font-bold text-xs rounded-xl shadow-sm transition-all cursor-pointer shrink-0"
+            >
+              {pushLoading ? "Connecting..." : "Enable Push Alerts"}
+            </button>
+          </div>
+        )}
+        {pushStatusMsg && (
+          <div className="bg-emerald-600 text-white px-4 py-2 text-xs font-semibold text-center shadow-xs shrink-0 animate-fade-in">
+            {pushStatusMsg}
+          </div>
+        )}
+
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>

@@ -4,8 +4,15 @@ import { useNavigate } from 'react-router-dom';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('resident_token'));
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('resident_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('resident_token'));
   const [loading, setLoading] = useState(true);
 
   let rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').trim();
@@ -22,15 +29,22 @@ export const AuthProvider = ({ children }) => {
           const res = await fetch(`${API_URL}/auth/me`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
+
+          // Only explicitly log out if the backend rejects the token with 401/403
+          if (res.status === 401 || res.status === 403) {
+            logout();
+            setLoading(false);
+            return;
+          }
+
           const data = await res.json();
           if (data.success && data.user.role === 'resident') {
             setUser(data.user);
-          } else {
-            logout();
+            localStorage.setItem('resident_user', JSON.stringify(data.user));
           }
         } catch (error) {
-          console.error("Auth check failed:", error);
-          logout();
+          // Network hiccup, offline mode, or mobile waking up: KEEP LOGGED IN
+          console.warn("Auth check network error, keeping cached session active:", error);
         }
       }
       setLoading(false);
@@ -53,6 +67,7 @@ export const AuthProvider = ({ children }) => {
           return { success: false, message: 'Access denied. Only residents can log in here.' };
         }
         localStorage.setItem('resident_token', data.token);
+        localStorage.setItem('resident_user', JSON.stringify(data.user));
         setToken(data.token);
         setUser(data.user);
         return { success: true };
@@ -87,6 +102,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('resident_token');
+    localStorage.removeItem('resident_user');
     setToken(null);
     setUser(null);
   };

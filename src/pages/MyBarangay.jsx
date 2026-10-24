@@ -172,7 +172,12 @@ const MyBarangay = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          {hasEColi ? (
+                          {isUnknown || s.e_coli === null || s.e_coli === undefined || s.e_coli === "unknown" ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                              Unknown
+                            </span>
+                          ) : hasEColi ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-800 border border-red-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
                               Present

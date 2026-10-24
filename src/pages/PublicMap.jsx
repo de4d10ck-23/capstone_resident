@@ -816,7 +816,12 @@ const PublicMap = () => {
 
                   <div className="flex justify-between items-center py-0.5">
                     <span className="text-slate-500 font-medium">E. Coli Presence:</span>
-                    {hasEColi ? (
+                    {isUnknown || selectedLocation.e_coli === null || selectedLocation.e_coli === undefined || selectedLocation.e_coli === "unknown" ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        <span>Unknown</span>
+                      </span>
+                    ) : hasEColi ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-red-100 text-red-800 border border-red-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
                         <span>Present</span>

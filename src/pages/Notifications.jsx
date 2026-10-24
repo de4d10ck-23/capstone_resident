@@ -45,25 +45,29 @@ const Notifications = () => {
     setPushLoading(true);
     setPushStatusMsg("");
     try {
-      if (!isSubscribed) {
-        const ok = await subscribeToPush();
-        if (ok) {
-          // Immediately dispatch a test push so user sees it right away
-          await fetch(`${API_URL}/notifications/test-push`, { method: "POST" });
-          setPushStatusMsg("Push notification active! Test alert sent.");
-          setTimeout(() => setPushStatusMsg(""), 4000);
-        }
-      } else {
-        // Already subscribed: send a test push to their device
-        const res = await fetch(`${API_URL}/notifications/test-push`, { method: "POST" });
+      // Ensure we have a fresh, verified subscription registered on the server for this user & barangay
+      const ok = await subscribeToPush(user?.barangay);
+      if (ok) {
+        // Dispatch test push to verify delivery to this device
+        const res = await fetch(`${API_URL}/notifications/test-push`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await res.json();
-        if (data.success) {
-          setPushStatusMsg("Test push alert sent to your device!");
-          setTimeout(() => setPushStatusMsg(""), 4000);
+        if (data.details && data.details.sent > 0) {
+          setPushStatusMsg(`🔔 Push active! Test alert delivered to ${data.details.sent} device(s). Check your notification bar!`);
+        } else {
+          setPushStatusMsg("Device successfully registered for push alerts!");
         }
+        setTimeout(() => setPushStatusMsg(""), 5000);
+      } else {
+        setPushStatusMsg("Failed to activate push. Please allow notifications in phone settings.");
+        setTimeout(() => setPushStatusMsg(""), 5000);
       }
     } catch (err) {
       console.error("Push action error:", err);
+      setPushStatusMsg("Push error: " + (err.message || "Failed to connect."));
+      setTimeout(() => setPushStatusMsg(""), 5000);
     } finally {
       setPushLoading(false);
     }

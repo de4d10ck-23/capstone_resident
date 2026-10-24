@@ -16,6 +16,7 @@ import {
   Droplets
 } from "lucide-react";
 import ReportDetailModal from "../components/ReportDetailModal";
+import BarangayWaterSourcesMap from "../components/BarangayWaterSourcesMap";
 
 const extractPhotoProof = (r) => {
   if (!r) return null;
@@ -49,6 +50,7 @@ const SubmitConcern = () => {
   const [formData, setFormData] = useState({
     description: "",
     category: initialCategory,
+    otherCategory: "",
   });
 
   const [locations, setLocations] = useState([]);
@@ -248,6 +250,9 @@ const SubmitConcern = () => {
       const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
       
       let fullDesc = formData.description.trim();
+      if (formData.category === "other" && formData.otherCategory?.trim()) {
+        fullDesc = `Concern: Other (${formData.otherCategory.trim()})\n\n${fullDesc}`;
+      }
       if (selectedLoc) {
         fullDesc = `${fullDesc}\n\n[Inspected Source: ${selectedLoc.full_name || selectedLoc.name} (ID: ${selectedLoc.id})]`;
       }
@@ -257,10 +262,13 @@ const SubmitConcern = () => {
         water_quality: "Water Quality Concern",
         broken_pipe: "Damaged / Broken Pipeline",
         toilet_proximity: "Unhygienic Toilet Proximity",
-        other: "Community Water Concern",
+        other: "Other Concern",
       };
 
-      let autoTitle = categoryTitles[formData.category] || "Community Concern";
+      let autoTitle =
+        formData.category === "other" && formData.otherCategory?.trim()
+          ? `Other: ${formData.otherCategory.trim()}`
+          : (categoryTitles[formData.category] || "Community Concern");
       if (selectedLoc) {
         autoTitle = `${autoTitle} - ${selectedLoc.full_name || selectedLoc.name}`;
       } else if (user?.barangay) {
@@ -296,6 +304,7 @@ const SubmitConcern = () => {
         setFormData({
           description: "",
           category: "request_inspection",
+          otherCategory: "",
         });
         setSelectedLocationId("");
         handleRemoveImage();
@@ -351,8 +360,8 @@ const SubmitConcern = () => {
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
         <h2 className="text-base font-bold text-slate-900 mb-4">New Concern or Inspection Details</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Category & Conditional Water Source (half-width if inspection, full-width otherwise) */}
-          <div className={formData.category === "request_inspection" ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "space-y-6"}>
+          {/* Category & Water Source Dropdowns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
                 Concern / Request Category
@@ -362,9 +371,6 @@ const SubmitConcern = () => {
                 onChange={(e) => {
                   const nextCat = e.target.value;
                   setFormData({ ...formData, category: nextCat });
-                  if (nextCat !== "request_inspection") {
-                    setSelectedLocationId("");
-                  }
                 }}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
               >
@@ -372,40 +378,61 @@ const SubmitConcern = () => {
                 <option value="water_quality">Water Quality (Odor, Color, Taste)</option>
                 <option value="broken_pipe">Damaged / Broken Pipeline</option>
                 <option value="toilet_proximity">Unhygienic Toilet Near Water Source</option>
-                <option value="other">Other Community Health Issue</option>
+                <option value="other">Other</option>
               </select>
+
+              {formData.category === "other" && (
+                <div className="mt-2.5">
+                  <input
+                    type="text"
+                    value={formData.otherCategory}
+                    onChange={(e) => setFormData({ ...formData, otherCategory: e.target.value })}
+                    placeholder="Please specify other concern..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+                    required
+                  />
+                </div>
+              )}
             </div>
 
-            {formData.category === "request_inspection" && (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Droplets size={13} className="text-cyan-600" />
-                    <span>Water Source in Brgy. {user?.barangay || "Community"}</span>
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full lowercase">
-                    {loadingLocations ? "loading..." : `${locations.length} available`}
-                  </span>
-                </label>
-                <select
-                  value={selectedLocationId}
-                  onChange={(e) => handleLocationChange(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
-                >
-                  <option value="">-- General Tap / Household / Unlisted Source in Brgy. {user?.barangay} --</option>
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.full_name || loc.name} ({loc.source_type?.replace(/_/g, " ") || loc.type?.replace(/_/g, " ") || "Station"})
-                    </option>
-                  ))}
-                </select>
-                {locations.length === 0 && !loadingLocations && (
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    No public stations listed in Brgy. {user?.barangay}. You can still request an inspection for your general household tap.
-                  </p>
-                )}
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Droplets size={13} className="text-cyan-600" />
+                  <span>Water Source in Brgy. {user?.barangay || "Community"}</span>
+                </span>
+                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full lowercase">
+                  {loadingLocations ? "loading..." : `${locations.length} available`}
+                </span>
+              </label>
+              <select
+                value={selectedLocationId}
+                onChange={(e) => handleLocationChange(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+              >
+                <option value="">-- General Tap / Household / Unlisted Source in Brgy. {user?.barangay} --</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={String(loc.id)}>
+                    {loc.full_name || loc.name} ({loc.source_type?.replace(/_/g, " ") || loc.type?.replace(/_/g, " ") || "Station"})
+                  </option>
+                ))}
+              </select>
+              {locations.length === 0 && !loadingLocations && (
+                <p className="text-[11px] text-slate-400 mt-1">
+                  No public stations listed in Brgy. {user?.barangay}. You can still file your report for your general household tap.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Interactive Map of Barangay Water Sources */}
+          <div>
+            <BarangayWaterSourcesMap
+              locations={locations}
+              selectedLocationId={selectedLocationId}
+              onSelectLocation={handleLocationChange}
+              barangayName={user?.barangay || "Community"}
+            />
           </div>
 
           <div>

@@ -98,14 +98,32 @@ export const usePushNotifications = (apiUrl, user = null) => {
       navigator.serviceWorker
         .register('/sw.js')
         .then(async (registration) => {
-          // Check if already subscribed
-          const subscription = await registration.pushManager.getSubscription();
+          let subscription = await registration.pushManager.getSubscription();
+
+          // If browser already has notification permission granted but no active PushManager subscription,
+          // automatically create the subscription so the phone starts receiving alerts immediately
+          if (!subscription && Notification.permission === 'granted' && apiUrl) {
+            try {
+              const keyRes = await fetch(`${apiUrl}/notifications/vapid-public-key`);
+              const keyData = await keyRes.json();
+              if (keyData.success && keyData.publicKey) {
+                const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
+                subscription = await registration.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey,
+                });
+              }
+            } catch (autoErr) {
+              console.warn('[Push] Auto-subscribe on granted permission notice:', autoErr);
+            }
+          }
+
           setIsSubscribed(!!subscription);
 
-          // Silently sync existing subscription to backend
+          // Silently sync subscription to backend with current user and barangay
           if (subscription && apiUrl) {
             try {
-              fetch(`${apiUrl}/notifications/subscribe`, {
+              await fetch(`${apiUrl}/notifications/subscribe`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -113,7 +131,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
                   user_id: user?.id || null,
                   barangay: user?.barangay || null,
                 }),
-              }).catch(() => {});
+              });
             } catch {}
           }
         })
@@ -215,16 +233,23 @@ export const usePushNotifications = (apiUrl, user = null) => {
 
       const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
 
-      // 3. Register push subscription with browser
+      // 3. Register fresh push subscription with browser
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
 
-      if (!subscription) {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey,
-        });
+      // If an existing subscription exists, unsubscribe it first to ensure a fresh, active token from FCM
+      if (subscription) {
+        try {
+          await subscription.unsubscribe();
+        } catch (unsubErr) {
+          console.warn('[Push] Unsubscribe error during refresh:', unsubErr);
+        }
       }
+
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
 
       // 4. Send subscription to backend
       const subPayload = {
@@ -284,6 +309,18 @@ export const usePushNotifications = (apiUrl, user = null) => {
     }
   }, [apiUrl, isSupported]);
 
+  // Dispatch a test push notification to this device
+  const testPush = useCallback(async () => {
+    try {
+      const res = await fetch(`${apiUrl}/notifications/test-push`, { method: "POST" });
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      console.error('[Push] Test push error:', err);
+      return { success: false, message: err.message };
+    }
+  }, [apiUrl]);
+
   return {
     isSupported,
     permission,
@@ -298,6 +335,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
     promptInstall,
     subscribeToPush,
     unsubscribeFromPush,
+    testPush,
   };
 };
 
