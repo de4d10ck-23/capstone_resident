@@ -25,11 +25,11 @@ const PublicNavbar = () => {
       <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-100 px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <Link to="/" className="flex items-center space-x-3 text-decoration-none group">
           <img
-            src="/images/logo/cropped_circle_image.png"
+            src="/images/logo/waterwatch-icon-192.png"
             alt="WaterWatch Logo"
-            className="w-10 sm:w-12 h-10 sm:h-12 rounded-full border-2 border-blue-200 object-cover group-hover:scale-105 transition-transform"
+            className="w-10 sm:w-12 h-10 sm:h-12 rounded-full border border-blue-200 object-cover group-hover:scale-105 transition-transform shadow-xs"
             onError={(e) => {
-              e.target.style.display = 'none';
+              e.target.src = '/images/logo/waterwatch-logo.svg';
             }}
           />
           <div className="flex flex-col">

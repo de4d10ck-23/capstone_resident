@@ -1,10 +1,14 @@
 // WaterWatch Resident Portal - Service Worker
-const CACHE_NAME = 'waterwatch-resident-v1';
+const CACHE_NAME = 'waterwatch-resident-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
   '/images/favicon.ico',
-  '/images/logo/logo-circled1.png'
+  '/images/favicon.png',
+  '/images/logo/waterwatch-badge.png',
+  '/images/logo/waterwatch-icon-192.png',
+  '/images/logo/waterwatch-icon-512.png',
+  '/images/logo/waterwatch-logo.svg'
 ];
 
 // Install: pre-cache critical shell assets
@@ -77,8 +81,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'WaterWatch Health Advisory';
   const options = {
     body: data.body || data.message || 'An official water safety alert has been broadcasted for your barangay.',
-    icon: data.icon || '/images/logo/logo-circled1.png',
-    badge: '/images/favicon.ico',
+    icon: data.icon || '/images/logo/waterwatch-icon-192.png',
+    badge: data.badge || '/images/logo/waterwatch-badge.png',
     tag: data.tag || 'waterwatch-alert',
     renotify: true,
     vibrate: [250, 100, 250, 100, 250],

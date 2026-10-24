@@ -18,20 +18,20 @@
   ],
   "icons": [
     {
-      "src": "/images/logo/logo-circled1.png",
+      "src": "/images/logo/waterwatch-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/images/logo/logo-circled1.png",
+      "src": "/images/logo/waterwatch-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
       "src": "/images/favicon.png",
-      "sizes": "128x128",
+      "sizes": "48x48",
       "type": "image/png"
     }
   ]
