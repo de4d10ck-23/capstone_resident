@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { MapPin, Droplets, X } from "lucide-react";
+import { MapPin, Droplets, X, Layers } from "lucide-react";
 
 const MAPBOX_TOKEN =
   import.meta.env.VITE_MAPBOX_KEY ||
@@ -26,8 +26,15 @@ const BarangayWaterSourcesMap = ({
   const mapContainer = useRef(null);
   const map = useRef(null);
   const markersRef = useRef([]);
+  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/satellite-streets-v12");
 
   const selectedLoc = locations.find((l) => String(l.id) === String(selectedLocationId));
+
+  const handleMapStyleChange = (newStyle) => {
+    if (newStyle === mapStyle || !map.current) return;
+    setMapStyle(newStyle);
+    map.current.setStyle(newStyle);
+  };
 
   // Initialize Mapbox map
   useEffect(() => {
@@ -45,7 +52,7 @@ const BarangayWaterSourcesMap = ({
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: initialCenter,
       zoom: 14,
     });
@@ -133,7 +140,7 @@ const BarangayWaterSourcesMap = ({
       marker._popup = popup;
       markersRef.current.push(marker);
     });
-  }, [locations, selectedLocationId, onSelectLocation]);
+  }, [locations, selectedLocationId, onSelectLocation, mapStyle]);
 
   // Fly to selected location when selectedLocationId changes
   useEffect(() => {
@@ -169,8 +176,37 @@ const BarangayWaterSourcesMap = ({
       <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
         <div ref={mapContainer} className="w-full h-full" />
 
+        {/* Map Style Selector (Satellite / Streets) */}
+        <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-md px-2 py-1.5 rounded-xl shadow-md border border-slate-200/90 flex items-center gap-1 text-xs">
+          <div className="px-1 text-slate-400">
+            <Layers size={14} />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleMapStyleChange("mapbox://styles/mapbox/satellite-streets-v12")}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              mapStyle === "mapbox://styles/mapbox/satellite-streets-v12"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+          >
+            Satellite
+          </button>
+          <button
+            type="button"
+            onClick={() => handleMapStyleChange("mapbox://styles/mapbox/streets-v12")}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              mapStyle === "mapbox://styles/mapbox/streets-v12"
+                ? "bg-blue-600 text-white shadow-xs"
+                : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+          >
+            Streets
+          </button>
+        </div>
+
         {/* Floating count badge */}
-        <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-full text-white text-[11px] font-medium shadow-md border border-white/10 pointer-events-none flex items-center gap-1.5 z-10">
+        <div className="absolute bottom-3 left-3 bg-slate-900/85 backdrop-blur-md px-3 py-1 rounded-full text-white text-[11px] font-medium shadow-md border border-white/10 pointer-events-none flex items-center gap-1.5 z-10">
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
           <span>{locations.length} Stations in Brgy. {barangayName}</span>
         </div>

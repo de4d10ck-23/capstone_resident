@@ -75,7 +75,7 @@ const AddWaterSource = () => {
     longitude: defaultLng,
   });
 
-  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/streets-v12");
+  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/satellite-streets-v12");
 
   const [locationValidation, setLocationValidation] = useState({
     isValid: true,
@@ -458,7 +458,7 @@ const AddWaterSource = () => {
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [initialLng, initialLat],
       zoom: 15.5,
     });
@@ -921,17 +921,6 @@ const AddWaterSource = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleMapStyleChange("mapbox://styles/mapbox/streets-v12")}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    mapStyle === "mapbox://styles/mapbox/streets-v12"
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
-                >
-                  Streets
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleMapStyleChange("mapbox://styles/mapbox/satellite-streets-v12")}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     mapStyle === "mapbox://styles/mapbox/satellite-streets-v12"
@@ -940,6 +929,17 @@ const AddWaterSource = () => {
                   }`}
                 >
                   Satellite
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMapStyleChange("mapbox://styles/mapbox/streets-v12")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    mapStyle === "mapbox://styles/mapbox/streets-v12"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  Streets
                 </button>
               </div>
               
