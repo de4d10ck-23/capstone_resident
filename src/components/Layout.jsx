@@ -29,6 +29,7 @@ const Layout = () => {
     isSubscribed,
     permission,
     loading: pushLoading,
+    error: pushError,
     subscribeToPush,
   } = usePushNotifications(API_URL, user);
 
@@ -43,13 +44,17 @@ const Layout = () => {
 
   // Fetch and sync unread count in real time directly from backend database
   useEffect(() => {
+    let version = 0;
+    let disposed = false;
     const fetchUnread = async () => {
+      const request = ++version;
       try {
         const res = await fetch(`${API_URL}/notifications/unread-count`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          cache: "no-store",
         });
         const data = await res.json();
-        if (data.success && typeof data.unread_count === "number") {
+        if (!disposed && request === version && res.ok && data.success && typeof data.unread_count === "number") {
           setUnreadCount(data.unread_count);
         }
       } catch (err) {
@@ -61,6 +66,7 @@ const Layout = () => {
 
     const handleNotificationsUpdate = (e) => {
       if (e.detail && typeof e.detail.unreadCount === "number") {
+        ++version;
         setUnreadCount(e.detail.unreadCount);
       } else {
         fetchUnread();
@@ -70,9 +76,20 @@ const Layout = () => {
     window.addEventListener("waterwatch_notifications_read", handleNotificationsUpdate);
     window.addEventListener("waterwatch_notifications_updated", handleNotificationsUpdate);
 
-    const interval = setInterval(fetchUnread, 15000); // Periodic background sync
+    const refresh = () => {
+      if (document.visibilityState === "visible") fetchUnread();
+    };
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
 
     return () => {
+      disposed = true;
+      ++version;
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("waterwatch_notifications_read", handleNotificationsUpdate);
       window.removeEventListener("waterwatch_notifications_updated", handleNotificationsUpdate);
       clearInterval(interval);
@@ -276,6 +293,9 @@ const Layout = () => {
               {pushLoading ? "Connecting..." : "Enable Push Alerts"}
             </button>
           </div>
+        )}
+        {pushError && (
+          <div role="alert" className="bg-red-50 text-red-800 px-4 py-2 text-xs">{pushError}</div>
         )}
         {pushStatusMsg && (
           <div className="bg-emerald-600 text-white px-4 py-2 text-xs font-semibold text-center shadow-xs shrink-0 animate-fade-in">

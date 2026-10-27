@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+function pushHeaders() {
+  const token = localStorage.getItem('resident_token');
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+}
+
 // Helper to convert VAPID public key string into Uint8Array for PushManager
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -99,12 +104,13 @@ export const usePushNotifications = (apiUrl, user = null) => {
 
       navigator.serviceWorker
         .register('/sw.js')
-        .then(async (registration) => {
+        .then(async () => {
+          const registration = await navigator.serviceWorker.ready;
           let subscription = await registration.pushManager.getSubscription();
 
           // If browser already has notification permission granted but no active PushManager subscription,
           // automatically create the subscription so the phone starts receiving alerts immediately
-          if (!subscription && Notification.permission === 'granted' && resolvedApiUrl) {
+          if (!subscription && user?.id && Notification.permission === 'granted' && resolvedApiUrl) {
             try {
               const keyRes = await fetch(`${resolvedApiUrl}/notifications/vapid-public-key`);
               const keyData = await keyRes.json();
@@ -120,24 +126,33 @@ export const usePushNotifications = (apiUrl, user = null) => {
             }
           }
 
-          setIsSubscribed(!!subscription);
+          setIsSubscribed(false);
 
           // Silently sync subscription to backend with current user and barangay
-          if (subscription && resolvedApiUrl) {
+          if (subscription && resolvedApiUrl && user?.id) {
             try {
-              await fetch(`${resolvedApiUrl}/notifications/subscribe`, {
+              const saveRes = await fetch(`${resolvedApiUrl}/notifications/subscribe`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: pushHeaders(),
                 body: JSON.stringify({
                   subscription: subscription.toJSON(),
                   user_id: user?.id || null,
                   barangay: user?.barangay || null,
                 }),
               });
-            } catch {}
+              const saved = await saveRes.json();
+              if (!saveRes.ok || !saved.success) throw new Error(saved.detail || 'Could not register device with server.');
+              setIsSubscribed(true);
+              setError(null);
+            } catch (err) {
+              setIsSubscribed(false);
+              setError(err.message || 'Device registration failed. Please enable push alerts again.');
+            }
           }
         })
         .catch((err) => {
+          setIsSubscribed(false);
+          setError(err.message || 'Service worker registration failed.');
           console.warn('[PWA] Service Worker registration failed:', err);
         });
     }
@@ -254,12 +269,17 @@ export const usePushNotifications = (apiUrl, user = null) => {
 
   // Subscribe to real-time Web Push
   const subscribeToPush = useCallback(async (customBarangay = null) => {
+    if (!user?.id) {
+      setError('Please sign in to enable push alerts.');
+      return false;
+    }
     if (!isSupported) {
       setError('Push notifications are not supported by this browser.');
       return false;
     }
 
     setLoading(true);
+    setIsSubscribed(false);
     setError(null);
 
     try {
@@ -287,19 +307,21 @@ export const usePushNotifications = (apiUrl, user = null) => {
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
 
-      // If an existing subscription exists, unsubscribe it first to ensure a fresh, active token from FCM
-      if (subscription) {
-        try {
-          await subscription.unsubscribe();
-        } catch (unsubErr) {
-          console.warn('[Push] Unsubscribe error during refresh:', unsubErr);
-        }
+      // Reuse a working subscription; rotate only when the server key changes.
+      const existingKey = subscription?.options?.applicationServerKey;
+      const matchesKey = existingKey && new Uint8Array(existingKey).length === applicationServerKey.length
+        && new Uint8Array(existingKey).every((byte, index) => byte === applicationServerKey[index]);
+      if (subscription && !matchesKey) {
+        const oldEndpoint = subscription.endpoint;
+        await subscription.unsubscribe();
+        await fetch(`${resolvedApiUrl}/notifications/unsubscribe`, {
+          method: 'POST', headers: pushHeaders(), body: JSON.stringify({ endpoint: oldEndpoint }),
+        });
+        subscription = null;
       }
-
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey,
-      });
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
+      }
 
       // 4. Send subscription to backend
       const subPayload = {
@@ -310,12 +332,12 @@ export const usePushNotifications = (apiUrl, user = null) => {
 
       const saveRes = await fetch(`${resolvedApiUrl}/notifications/subscribe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: pushHeaders(),
         body: JSON.stringify(subPayload),
       });
 
       const saveData = await saveRes.json();
-      if (!saveData.success) {
+      if (!saveRes.ok || !saveData.success) {
         throw new Error(saveData.detail || 'Could not save subscription to server.');
       }
 
@@ -346,7 +368,7 @@ export const usePushNotifications = (apiUrl, user = null) => {
         await subscription.unsubscribe();
         await fetch(`${resolvedApiUrl}/notifications/unsubscribe`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: pushHeaders(),
           body: JSON.stringify({ endpoint: subscription.endpoint }),
         }).catch((e) => console.warn('Unsubscribe API call:', e));
       }
@@ -362,10 +384,10 @@ export const usePushNotifications = (apiUrl, user = null) => {
     }
   }, [resolvedApiUrl, isSupported]);
 
-  // Dispatch a test push notification to this device
+  // Dispatch a test push notification only to the signed-in user's devices
   const testPush = useCallback(async () => {
     try {
-      const res = await fetch(`${resolvedApiUrl}/notifications/test-push`, { method: "POST" });
+      const res = await fetch(`${resolvedApiUrl}/notifications/test-push`, { method: "POST", headers: pushHeaders() });
       const data = await res.json();
       return data;
     } catch (err) {

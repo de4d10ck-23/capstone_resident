@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { 
   Bell, 
@@ -21,10 +21,15 @@ const Notifications = () => {
   const { user, token, API_URL } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [readError, setReadError] = useState("");
+  const [savingRead, setSavingRead] = useState(false);
+  const requestVersion = useRef(0);
+  const readPending = useRef(false);
   const [filter, setFilter] = useState("all"); // 'all', 'unread', 'critical'
 
   // Web Push Hook
   const { 
+    error: pushError,
     isSubscribed, 
     subscribeToPush, 
     isSupported 
@@ -42,7 +47,7 @@ const Notifications = () => {
         setPushStatusMsg("Device successfully registered for push alerts!");
         setTimeout(() => setPushStatusMsg(""), 5000);
       } else {
-        setPushStatusMsg("Failed to activate push. Please allow notifications in phone settings.");
+        setPushStatusMsg("Failed to activate push. See the registration error below.");
         setTimeout(() => setPushStatusMsg(""), 5000);
       }
     } catch (err) {
@@ -62,68 +67,75 @@ const Notifications = () => {
     );
   };
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (showLoading = false) => {
+    if (readPending.current) return;
+    const version = ++requestVersion.current;
+    if (showLoading) setLoading(true);
     try {
-      setLoading(true);
       const res = await fetch(`${API_URL}/notifications`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
       });
       const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setNotifications(data.data);
-        const unread = typeof data.unread_count === "number"
-          ? data.unread_count
-          : data.data.filter((n) => !n.is_read).length;
-        notifyUnreadChange(unread);
+      if (!res.ok || !data.success || !Array.isArray(data.data)) {
+        throw new Error(data.detail || "Unable to refresh notifications.");
       }
+      if (version !== requestVersion.current) return;
+      setNotifications(data.data);
+      notifyUnreadChange(data.unread_count);
     } catch (err) {
-      console.error("Error fetching notifications:", err);
+      if (version === requestVersion.current) setReadError(err.message);
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications(true);
+    const refresh = () => {
+      if (document.visibilityState === "visible") fetchNotifications();
+    };
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      ++requestVersion.current;
+      clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [API_URL, token]);
 
-  // Mark single notification as read in database
-  const handleMarkAsRead = async (id, e) => {
-    if (e && e.stopPropagation) e.stopPropagation();
-
-    // Optimistically mark as read in local state
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-    );
-
-    const remainingUnread = notifications.filter((n) => n.id !== id && !n.is_read).length;
-    notifyUnreadChange(remainingUnread);
-
+  const saveReadStatus = async (path) => {
+    if (readPending.current) return;
+    readPending.current = true;
+    ++requestVersion.current;
+    setSavingRead(true);
+    setReadError("");
     try {
-      await fetch(`${API_URL}/notifications/${id}/read`, {
+      const res = await fetch(`${API_URL}/notifications/${path}`, {
         method: "PUT",
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.detail || "Unable to save read status.");
     } catch (err) {
-      console.error("Failed to sync read status with backend:", err);
+      setReadError(err.message || "Unable to save read status. Please try again.");
+    } finally {
+      readPending.current = false;
+      await fetchNotifications();
+      setSavingRead(false);
     }
   };
 
-  // Mark all notifications as read in database
-  const handleMarkAllAsRead = async () => {
-    // Optimistically mark all read in local state
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    notifyUnreadChange(0);
-
-    try {
-      await fetch(`${API_URL}/notifications/read-all`, {
-        method: "PUT",
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-    } catch (err) {
-      console.error("Failed to sync read-all with backend:", err);
-    }
+  const handleMarkAsRead = (id, e) => {
+    e?.stopPropagation();
+    return saveReadStatus(`${id}/read`);
   };
+
+  const handleMarkAllAsRead = () => saveReadStatus("read-all");
 
   const isRead = (itemOrId) => {
     if (!itemOrId) return false;
@@ -229,6 +241,7 @@ const Notifications = () => {
             <button
               type="button"
               onClick={handleMarkAllAsRead}
+              disabled={savingRead}
               className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-white text-blue-900 hover:bg-blue-50 font-bold text-xs shadow-md transition-all cursor-pointer flex-shrink-0"
             >
               <CheckCheck size={16} />
@@ -239,6 +252,8 @@ const Notifications = () => {
       </div>
 
       {/* Push Status Toast / Confirmation */}
+      {readError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{readError}</p>}
+      {pushError && <p role="alert" className="text-sm text-red-700">{pushError}</p>}
       {pushStatusMsg && (
         <div className="bg-emerald-900/90 border border-emerald-500/50 text-emerald-100 px-4 py-2.5 rounded-2xl text-xs font-semibold flex items-center justify-between animate-fade-in shadow-lg">
           <span>{pushStatusMsg}</span>
@@ -385,6 +400,7 @@ const Notifications = () => {
                   {!read ? (
                     <button
                       onClick={(e) => handleMarkAsRead(n.id, e)}
+                      disabled={savingRead}
                       className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all hover:text-blue-900 cursor-pointer flex-shrink-0"
                       title="Mark as read"
                     >
