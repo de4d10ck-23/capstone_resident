@@ -12,6 +12,7 @@ import {
   X,
   Smartphone,
   Download,
+  UserRound,
 } from 'lucide-react';
 import usePushNotifications from '../hooks/usePushNotifications';
 
@@ -97,6 +98,7 @@ const Layout = () => {
   }, [API_URL, token, user?.id]);
 
   const navItems = [
+    { to: "/portal/profile", icon: <UserRound size={20} />, label: "My Profile" },
     { to: "/portal/my-barangay", icon: <MapPin size={20} />, label: "My Barangay Overview" },
     { to: "/portal/add-water-source", icon: <PlusCircle size={20} />, label: "Add Water Source" },
     { to: "/portal/submit-concern", icon: <MessageSquare size={20} />, label: "Submit Concern / Request" },

@@ -1,3 +1,5 @@
+import useReportRefresh from "../hooks/useReportRefresh";
+import ErrorNotice from "../components/ErrorNotice";
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { 
@@ -39,23 +41,20 @@ const extractPhotoProof = (r) => {
   if (r.image_url) return r.image_url;
   if (r.photo_url) return r.photo_url;
   if (r.description) {
-    const match = r.description.match(/\[(?:Attached )?Photo Proof:\s*(https?:\/\/[^\s\]]+)\]/i)
+    const match = r.description.match(/\[(?:Attached )?Photo Proof:\s*([^\]]+)\]/i)
       || r.description.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|webp|gif))/i);
-    if (match) return match[1];
+    if (match) return match[1].trim();
   }
   return null;
 };
 
 const cleanDesc = (r) => {
   if (!r) return "";
-  if (r.clean_description) return r.clean_description;
-  if (r.description) {
-    return r.description
-      .replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "")
-      .replace(/\[Inspected Source:[^\]]+\]\s*/gi, "")
-      .trim();
-  }
-  return "";
+  const raw = r.clean_description || r.description || "";
+  return raw
+    .replace(/\[(?:Attached )?Photo Proof:[^\]]*\]/gi, "")
+    .replace(/\[Inspected Source:[^\]]*\]\s*/gi, "")
+    .trim();
 };
 
 const AddWaterSource = () => {
@@ -105,9 +104,9 @@ const AddWaterSource = () => {
   const marker = useRef(null);
 
   // Fetch Resident's Own Submitted Water Sources
-  const fetchMySources = async () => {
+  const fetchMySources = async (showLoading = false) => {
     try {
-      setLoadingSources(true);
+      if (showLoading === true) setLoadingSources(true);
       const res = await fetch(`${API_URL}/resident-reports`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -117,6 +116,7 @@ const AddWaterSource = () => {
           (r) => r.type === "unregistered_source" || r.category === "unregistered_source"
         );
         setMySources(sourcesOnly);
+        setDetailReport((current) => current ? sourcesOnly.find((r) => r.id === current.id) || null : null);
       }
     } catch (err) {
       console.error("Error fetching my water sources:", err);
@@ -150,9 +150,7 @@ const AddWaterSource = () => {
     }
   };
 
-  useEffect(() => {
-    fetchMySources();
-  }, [token, API_URL]);
+  useReportRefresh(fetchMySources, API_URL, token);
 
   // Handle Image Selection
   const handleFileChange = (e) => {
@@ -799,15 +797,7 @@ const AddWaterSource = () => {
       )}
 
       {/* Error Notification */}
-      {errorMsg && (
-        <div className="p-5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-3 shadow-sm">
-          <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold">Submission Error</p>
-            <p>{errorMsg}</p>
-          </div>
-        </div>
-      )}
+      <ErrorNotice error={errorMsg} />
 
       {/* Main Form Container */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
@@ -1156,26 +1146,27 @@ const AddWaterSource = () => {
         ) : (
           <div className="space-y-3">
             {mySources.map((r) => {
-              const isEscalated = r.status === "escalated" || r.status === "passed_to_chu";
+              const isProcessing = ["in_progress", "processing", "assigned"].includes(r.status);
+  const isEscalated = r.status === "escalated" || r.status === "passed_to_chu";
               const isDone = r.status === "done" || r.status === "resolved" || r.status === "completed";
               const isDismissed = r.status === "dismissed" || r.status === "rejected";
-              const isPending = !isEscalated && !isDone && !isDismissed;
+              const isPending = !isProcessing && !isEscalated && !isDone && !isDismissed;
               const canDelete = !r.status || r.status === "pending";
-              const displayDesc = cleanDesc(r) || r.description;
+              const displayDesc = cleanDesc(r);
 
               return (
                 <div
                   key={r.id}
                   className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all hover:bg-slate-50"
                 >
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-slate-900">{r.title}</h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200 text-blue-700">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h4 className="font-bold text-sm text-slate-900 truncate" title={r.title}>{r.title}</h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200 text-blue-700 flex-shrink-0 whitespace-nowrap">
                         New Water Source
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600">{displayDesc}</p>
+                    {displayDesc ? <p className="text-xs text-slate-600">{displayDesc}</p> : null}
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
                       <span>Brgy. {r.barangay}</span>
                       {r.latitude && r.longitude && (
@@ -1233,7 +1224,7 @@ const AddWaterSource = () => {
                       {isPending && <Clock size={11} />}
                       {isEscalated && <Send size={11} />}
                       <span>
-                        {isEscalated
+                        {isProcessing ? "Processing" : isEscalated
                           ? "Passed to CHU"
                           : isDone
                           ? "Done"

@@ -241,7 +241,7 @@ const BarangayWaterSourcesMap = ({
         </div>
       ) : (
         <p className="text-[11px] text-slate-400 italic">
-          No specific station selected — report will be filed under general household / unlisted tap.
+          Select a water source on the map or from the dropdown before sending your request.
         </p>
       )}
     </div>

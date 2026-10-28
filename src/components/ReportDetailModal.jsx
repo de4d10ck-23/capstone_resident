@@ -20,23 +20,20 @@ const extractImage = (r) => {
   if (r.image_url) return r.image_url;
   if (r.photo_url) return r.photo_url;
   if (r.description) {
-    const match = r.description.match(/\[(?:Attached )?Photo Proof:\s*(https?:\/\/[^\s\]]+)\]/i)
+    const match = r.description.match(/\[(?:Attached )?Photo Proof:\s*([^\]]+)\]/i)
       || r.description.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|webp|gif))/i);
-    if (match) return match[1];
+    if (match) return match[1].trim();
   }
   return null;
 };
 
 const getDisplayDescription = (r) => {
   if (!r) return "";
-  if (r.clean_description) return r.clean_description;
-  if (r.description) {
-    return r.description
-      .replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "")
-      .replace(/\[Inspected Source:[^\]]+\]\s*/gi, "")
-      .trim();
-  }
-  return "";
+  const raw = r.clean_description || r.description || "";
+  return raw
+    .replace(/\[(?:Attached )?Photo Proof:[^\]]*\]/gi, "")
+    .replace(/\[Inspected Source:[^\]]*\]\s*/gi, "")
+    .trim();
 };
 
 const ReportDetailModal = ({ report, onClose, onDelete }) => {
@@ -57,7 +54,7 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [lng, lat],
       zoom: hasCoords ? 15 : 12,
     });
@@ -101,10 +98,11 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
 
   if (!report) return null;
 
+  const isProcessing = ["in_progress", "processing", "assigned"].includes(report.status);
   const isEscalated = report.status === "escalated" || report.status === "passed_to_chu";
   const isDone = report.status === "done" || report.status === "resolved" || report.status === "completed";
   const isDismissed = report.status === "dismissed" || report.status === "rejected";
-  const isPending = !isEscalated && !isDone && !isDismissed;
+  const isPending = !isProcessing && !isEscalated && !isDone && !isDismissed;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
@@ -125,7 +123,7 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
                   ? "bg-rose-100 text-rose-800 border border-rose-200"
                   : "bg-amber-100 text-amber-800 border border-amber-200"
               }`}>
-                {isEscalated
+                {isProcessing ? "Processing" : isEscalated
                   ? "Passed to CHU"
                   : isDone
                   ? "Done"

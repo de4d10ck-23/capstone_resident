@@ -1,3 +1,5 @@
+import useReportRefresh from "../hooks/useReportRefresh";
+import ErrorNotice from "../components/ErrorNotice";
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -23,23 +25,20 @@ const extractPhotoProof = (r) => {
   if (r.image_url) return r.image_url;
   if (r.photo_url) return r.photo_url;
   if (r.description) {
-    const match = r.description.match(/\[(?:Attached )?Photo Proof:\s*(https?:\/\/[^\s\]]+)\]/i)
+    const match = r.description.match(/\[(?:Attached )?Photo Proof:\s*([^\]]+)\]/i)
       || r.description.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|webp|gif))/i);
-    if (match) return match[1];
+    if (match) return match[1].trim();
   }
   return null;
 };
 
 const cleanDesc = (r) => {
   if (!r) return "";
-  if (r.clean_description) return r.clean_description;
-  if (r.description) {
-    return r.description
-      .replace(/\[(?:Attached )?Photo Proof:\s*https?:\/\/[^\s\]]+\]/gi, "")
-      .replace(/\[Inspected Source:[^\]]+\]\s*/gi, "")
-      .trim();
-  }
-  return "";
+  const raw = r.clean_description || r.description || "";
+  return raw
+    .replace(/\[(?:Attached )?Photo Proof:[^\]]*\]/gi, "")
+    .replace(/\[Inspected Source:[^\]]*\]\s*/gi, "")
+    .trim();
 };
 
 const SubmitConcern = () => {
@@ -56,6 +55,7 @@ const SubmitConcern = () => {
   const [locations, setLocations] = useState([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState("");
+  const selectedLocation = locations.find((location) => String(location.id) === String(selectedLocationId));
 
   useEffect(() => {
     const cat = searchParams.get("category");
@@ -67,6 +67,8 @@ const SubmitConcern = () => {
   // Fetch water sources available ONLY for the resident's designated barangay
   useEffect(() => {
     const fetchBarangayLocations = async () => {
+      setSelectedLocationId("");
+      setLocations([]);
       if (!user?.barangay) return;
       try {
         setLoadingLocations(true);
@@ -75,7 +77,7 @@ const SubmitConcern = () => {
         if (data.success && Array.isArray(data.data)) {
           // Strictly filter so only water sources from resident's designated barangay appear
           const designatedLocs = data.data.filter(
-            (l) => !l.barangay || l.barangay.toLowerCase() === user.barangay.toLowerCase()
+            (l) => l.barangay?.trim().toLowerCase() === user.barangay.trim().toLowerCase()
           );
           setLocations(designatedLocs);
         }
@@ -109,9 +111,9 @@ const SubmitConcern = () => {
   const fileInputRef = useRef(null);
 
   // Fetch Resident's Own Submitted Concerns (excluding unregistered sources)
-  const fetchMyReports = async () => {
+  const fetchMyReports = async (showLoading = false) => {
     try {
-      setLoadingReports(true);
+      if (showLoading === true) setLoadingReports(true);
       const res = await fetch(`${API_URL}/resident-reports`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -122,6 +124,7 @@ const SubmitConcern = () => {
           (r) => r.type !== "unregistered_source" && r.category !== "unregistered_source"
         );
         setMyReports(concernsOnly);
+        setDetailReport((current) => current ? concernsOnly.find((r) => r.id === current.id) || null : null);
       }
     } catch (err) {
       console.error("Error fetching my resident reports:", err);
@@ -155,9 +158,7 @@ const SubmitConcern = () => {
     }
   };
 
-  useEffect(() => {
-    fetchMyReports();
-  }, [token, API_URL]);
+  useReportRefresh(fetchMyReports, API_URL, token);
 
   // Handle Image Selection
   const handleFileChange = (e) => {
@@ -204,6 +205,10 @@ const SubmitConcern = () => {
     e.preventDefault();
     setSuccessMsg("");
     setErrorMsg("");
+    if (!selectedLocation || loadingLocations) {
+      setErrorMsg("Select a water source from the dropdown or map before sending your request.");
+      return;
+    }
     setIsSubmitting(true);
     setUploadStatus("");
 
@@ -276,6 +281,7 @@ const SubmitConcern = () => {
       }
 
       const payload = {
+        location_id: selectedLoc.id,
         title: autoTitle,
         description: fullDesc,
         category: formData.category,
@@ -346,15 +352,7 @@ const SubmitConcern = () => {
       )}
 
       {/* Error Notification */}
-      {errorMsg && (
-        <div className="p-5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-sm flex items-start gap-3 shadow-sm">
-          <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold">Submission Error</p>
-            <p>{errorMsg}</p>
-          </div>
-        </div>
-      )}
+      <ErrorNotice error={errorMsg} />
 
       {/* Main Form Container */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
@@ -407,10 +405,12 @@ const SubmitConcern = () => {
               </label>
               <select
                 value={selectedLocationId}
+                required
+                disabled={loadingLocations}
                 onChange={(e) => handleLocationChange(e.target.value)}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
               >
-                <option value="">-- General Tap / Household / Unlisted Source in Brgy. {user?.barangay} --</option>
+                <option value="">-- Select a water source --</option>
                 {locations.map((loc) => (
                   <option key={loc.id} value={String(loc.id)}>
                     {loc.full_name || loc.name} ({loc.source_type?.replace(/_/g, " ") || loc.type?.replace(/_/g, " ") || "Station"})
@@ -419,7 +419,7 @@ const SubmitConcern = () => {
               </select>
               {locations.length === 0 && !loadingLocations && (
                 <p className="text-[11px] text-slate-400 mt-1">
-                  No public stations listed in Brgy. {user?.barangay}. You can still file your report for your general household tap.
+                  No water sources are available in Brgy. {user?.barangay}. Use Add Water Source to report an unlisted source.
                 </p>
               )}
             </div>
@@ -520,10 +520,11 @@ const SubmitConcern = () => {
           </div>
 
           {/* Submit Button */}
+          {!selectedLocation && <p className="text-xs text-slate-500">Select a water source from the dropdown or map to enable sending.</p>}
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full py-4 rounded-full bg-blue-900 hover:bg-blue-800 text-white font-semibold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer"
+            disabled={isSubmitting || loadingLocations || !selectedLocation}
+            className="w-full py-4 rounded-full bg-blue-900 hover:bg-blue-800 text-white font-semibold text-sm transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
           >
             {isSubmitting ? (
               <>
@@ -565,23 +566,24 @@ const SubmitConcern = () => {
         ) : (
           <div className="space-y-3">
             {myReports.map((r) => {
-              const isEscalated = r.status === "escalated" || r.status === "passed_to_chu";
+              const isProcessing = ["in_progress", "processing", "assigned"].includes(r.status);
+  const isEscalated = r.status === "escalated" || r.status === "passed_to_chu";
               const isDone = r.status === "done" || r.status === "resolved" || r.status === "completed";
               const isDismissed = r.status === "dismissed" || r.status === "rejected";
-              const isPending = !isEscalated && !isDone && !isDismissed;
+              const isPending = !isProcessing && !isEscalated && !isDone && !isDismissed;
               const canDelete = !r.status || r.status === "pending";
               const photo = extractPhotoProof(r);
-              const displayDesc = cleanDesc(r) || r.description;
+              const displayDesc = cleanDesc(r);
 
               return (
                 <div
                   key={r.id}
                   className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all hover:bg-slate-50"
                 >
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-slate-900">{r.title}</h4>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h4 className="font-bold text-sm text-slate-900 truncate" title={r.title}>{r.title}</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize flex-shrink-0 whitespace-nowrap ${
                         (r.type || r.category) === "request_inspection"
                           ? "bg-cyan-50 border-cyan-200 text-cyan-800"
                           : "bg-white border-slate-200 text-slate-600"
@@ -589,7 +591,7 @@ const SubmitConcern = () => {
                         {(r.type || r.category || "Concern").replace(/_/g, " ")}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-600">{displayDesc}</p>
+                    {displayDesc ? <p className="text-xs text-slate-600">{displayDesc}</p> : null}
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
                       <span>Brgy. {r.barangay}</span>
                       <span>•</span>
@@ -639,7 +641,7 @@ const SubmitConcern = () => {
                       {isPending && <Clock size={11} />}
                       {isEscalated && <Send size={11} />}
                       <span>
-                        {isEscalated
+                        {isProcessing ? "Processing" : isEscalated
                           ? "Passed to CHU"
                           : isDone
                           ? "Done"

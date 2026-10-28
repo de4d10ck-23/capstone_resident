@@ -100,6 +100,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateProfile = async (profile) => {
+    const res = await fetch(`${API_URL}/auth/me`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(profile),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      const message = Array.isArray(data.detail)
+        ? data.detail.map(item => item.msg).join('. ')
+        : data.detail;
+      throw new Error(message || 'Could not save your profile. Please try again.');
+    }
+    localStorage.setItem('resident_user', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem('resident_token');
     localStorage.removeItem('resident_user');
@@ -108,7 +126,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, API_URL }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfile, API_URL }}>
       {children}
     </AuthContext.Provider>
   );

@@ -27,6 +27,8 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { getBarangayFeature, getBarangayBounds } from "../utils/barangayBoundary";
 import { MAASIN_BARANGAYS } from "../constants/barangays";
+import { useMapForecast } from "../hooks/useMapForecast";
+import MapForecastControls, { riskLabel } from "../components/MapForecastControls";
 
 export const parseLocationPhotos = (loc) => {
   if (!loc) return [];
@@ -70,13 +72,18 @@ const PublicMap = () => {
   const listContainerRef = useRef(null);
   const { API_URL } = useAuth();
 
-  const [locations, setLocations] = useState([]);
+  const [records, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBarangay, setSelectedBarangay] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [selectedLocation, setSelectedLocation] = useState(null);
-  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/streets-v12");
+  const [selection, setSelectedLocation] = useState(null);
+  const forecast = useMapForecast(API_URL, records, selectedBarangay);
+  const { locations } = forecast;
+  const isModel = forecast.source === "model";
+  const selectedLocation = locations.find((loc) => loc.id === selection?.id) || null;
+  const statusLabel = (status) => isModel ? riskLabel(status) : (status || "Unknown");
+  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/satellite-streets-v12");
   const [mobileTab, setMobileTab] = useState("map"); // 'map' or 'list'
   const [photoGallery, setPhotoGallery] = useState({
     open: false,
@@ -435,29 +442,31 @@ const PublicMap = () => {
   });
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col md:flex-row relative overflow-hidden font-sans">
+    <div className="h-[calc(100vh-80px)] flex flex-col relative overflow-hidden font-sans">
+      <MapForecastControls forecast={forecast} />
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
       {/* Mobile View Toggle Bar (Only visible on small screens) */}
-      <div className="md:hidden bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-center gap-2 z-20 shadow-sm flex-shrink-0">
+      <div className="md:hidden bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-center gap-1.5 z-20 shadow-sm flex-shrink-0">
         <button
           onClick={() => setMobileTab("map")}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+          className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
             mobileTab === "map"
               ? "bg-[#0f3b82] text-white shadow-sm"
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          <MapIcon size={14} />
+          <MapIcon size={12} />
           <span>Interactive Map</span>
         </button>
         <button
           onClick={() => setMobileTab("list")}
-          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+          className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
             mobileTab === "list"
               ? "bg-[#0f3b82] text-white shadow-sm"
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          <List size={14} />
+          <List size={12} />
           <span>Stations List ({filteredLocations.length})</span>
         </button>
       </div>
@@ -470,7 +479,7 @@ const PublicMap = () => {
           <div>
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Public Water Map</span>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Maasin City Sources</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Explore real-time tested drinking water stations & sanitary safety</p>
+            <p className="text-xs text-slate-500 mt-0.5">{isModel ? `Model estimates · ${forecast.date}` : 'Latest sanitation records & water test results'}</p>
           </div>
 
           {/* Search input */}
@@ -509,10 +518,10 @@ const PublicMap = () => {
                 className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-600"
               >
                 <option value="all">All Statuses</option>
-                <option value="safe">Safe Only</option>
-                <option value="warning">Warning Level</option>
-                <option value="contaminated">Contaminated</option>
-                <option value="unknown">Unknown</option>
+                <option value="safe">{isModel ? 'Low risk' : 'Safe Only'}</option>
+                <option value="warning">{isModel ? 'Moderate risk' : 'Warning Level'}</option>
+                <option value="contaminated">{isModel ? 'High risk' : 'Contaminated'}</option>
+                <option value="unknown">{isModel ? 'Unavailable' : 'Unknown'}</option>
               </select>
             </div>
           </div>
@@ -582,7 +591,7 @@ const PublicMap = () => {
                         : "bg-rose-100 text-rose-700"
                     }`}
                   >
-                    {isUnknown ? "Unknown" : (loc.status || "Unknown")}
+                    {statusLabel(loc.status)}
                   </span>
                 </div>
               </div>
@@ -592,8 +601,9 @@ const PublicMap = () => {
       </div>
 
       {/* Map Canvas Area */}
-      <div className={`flex-1 relative ${mobileTab === "list" ? "hidden md:block" : "block"}`}>
+      <div className={`resident-map-canvas flex-1 relative ${mobileTab === "list" ? "hidden md:block" : "block"}`}>
         <style>{`
+          .resident-map-canvas .mapboxgl-ctrl-top-right { top: ${isModel ? 72 : 0}px; }
           .show-zoom-labels .station-zoom-label {
             display: block !important;
           }
@@ -611,24 +621,15 @@ const PublicMap = () => {
         `}</style>
         <div ref={mapContainer} className="w-full h-full" />
 
-        {/* Map Overlays: Styles Selector */}
-        <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-md px-2.5 py-2 rounded-2xl shadow-xl border border-slate-200/80 flex flex-wrap items-center gap-1.5 text-xs">
+        {/* Map style and forecast date share the top overlay row. */}
+        <div className="absolute top-3 left-3 right-3 md:top-4 md:left-4 md:right-4 z-10 flex items-start justify-between gap-2 pointer-events-none">
+        <div className="shrink-0 h-9 md:h-12 pointer-events-auto bg-white/95 backdrop-blur-md px-1.5 py-1 md:px-2.5 md:py-2 rounded-xl md:rounded-2xl shadow-xl border border-slate-200/80 flex items-center gap-1 md:gap-1.5 text-[11px] md:text-xs">
           <div className="px-1 text-slate-400">
-            <Layers size={16} />
+            <Layers size={16} className="w-3.5 h-3.5 md:w-4 md:h-4" />
           </div>
           <button
-            onClick={() => setMapStyle("mapbox://styles/mapbox/streets-v12")}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${
-              mapStyle === "mapbox://styles/mapbox/streets-v12"
-                ? "bg-[#0f3b82] text-white shadow-sm"
-                : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
-            }`}
-          >
-            Streets
-          </button>
-          <button
             onClick={() => setMapStyle("mapbox://styles/mapbox/satellite-streets-v12")}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${
+            className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl font-semibold transition-all cursor-pointer ${
               mapStyle === "mapbox://styles/mapbox/satellite-streets-v12"
                 ? "bg-[#0f3b82] text-white shadow-sm"
                 : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
@@ -637,16 +638,39 @@ const PublicMap = () => {
             Satellite
           </button>
           <button
-            onClick={() => setMapStyle("mapbox://styles/mapbox/light-v11")}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition-all cursor-pointer ${
-              mapStyle === "mapbox://styles/mapbox/light-v11"
+            onClick={() => setMapStyle("mapbox://styles/mapbox/streets-v12")}
+            className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl font-semibold transition-all cursor-pointer ${
+              mapStyle === "mapbox://styles/mapbox/streets-v12"
                 ? "bg-[#0f3b82] text-white shadow-sm"
                 : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
             }`}
           >
-            Light
+            Streets
           </button>
+
         </div>
+
+          {isModel && <label className="pointer-events-auto min-w-0 h-9 md:h-12 flex items-center rounded-xl md:rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-md px-1.5 py-1 md:px-2.5 md:py-2 shadow-xl text-[11px] md:text-xs font-semibold text-slate-700">
+            <select aria-label="Forecast date" value={forecast.day}
+              onChange={(event) => forecast.setDay(Number(event.target.value))}
+              className="w-28 min-w-0 md:w-48 rounded-md border-0 bg-transparent px-1 py-1 text-[11px] md:text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
+              {forecast.dates.map((item, index) => <option key={item.value} value={index}>{item.label}</option>)}
+            </select>
+          </label>}
+        </div>
+
+        {/* Loading Forecast Indicator (Bottom Center of Map) */}
+        {isModel && forecast.loading && (
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-200">
+            <div className="bg-white/95 backdrop-blur-md text-black text-xs md:text-sm font-semibold px-4 py-2 rounded-full shadow-xl border border-slate-200/90 flex items-center gap-2">
+              <svg className="animate-spin h-3.5 w-3.5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Loading forecast...</span>
+            </div>
+          </div>
+        )}
 
         {/* Selected Station Details: Google Maps-style Expandable Bottom Sheet */}
         {selectedLocation && (() => {
@@ -723,7 +747,7 @@ const PublicMap = () => {
                         {isWarning && <AlertTriangle size={11} />}
                         {isContaminated && <XCircle size={11} />}
                         {isUnknown && <HelpCircle size={11} />}
-                        <span>{isUnknown ? "Unknown" : selectedLocation.status}</span>
+                        <span>{statusLabel(selectedLocation.status)}</span>
                       </span>
                     </div>
                     <h3 className="font-bold text-lg text-slate-900 leading-tight mt-0.5 truncate">
@@ -806,17 +830,26 @@ const PublicMap = () => {
                 </div>
 
                 {/* Detailed Station Metrics & Information */}
+                {isModel && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
+                  <p className="font-bold">Model forecast · {forecast.date}</p>
+                  {selectedLocation.forecast ? <>
+                    <p>Estimated risk: {selectedLocation.forecast.risk_percentage}% · {riskLabel(selectedLocation.status)}</p>
+                    {selectedLocation.forecast.generated_at && <p>Updated: {new Date(selectedLocation.forecast.generated_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} (PH){selectedLocation.forecast.stale ? ' · Older forecast' : ''}</p>}
+                    <p>Rain: {selectedLocation.forecast.environmental_metrics.rainfall_24h_mm} mm/day · {selectedLocation.forecast.environmental_metrics.temperature_celsius}°C · Humidity: {selectedLocation.forecast.environmental_metrics.humidity_percent}%</p>
+                    <p>Weather-based estimate; use sanitation records for the latest tested status.</p>
+                  </> : <p>{forecast.loading ? 'Loading forecast…' : 'No forecast available for this station and date.'}</p>}
+                </div>}
                 <div className="bg-slate-50/90 rounded-2xl p-4 border border-slate-200/70 space-y-2.5 text-xs">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-medium">Safety Status:</span>
+                    <span className="text-slate-500 font-medium">{isModel ? 'Estimated risk:' : 'Safety Status:'}</span>
                     <span className="font-bold uppercase text-slate-900">
-                      {isUnknown ? "Unknown" : selectedLocation.status}
+                      {statusLabel(selectedLocation.status)}
                     </span>
                   </div>
 
                   <div className="flex justify-between items-center py-0.5">
-                    <span className="text-slate-500 font-medium">E. Coli Presence:</span>
-                    {isUnknown || selectedLocation.e_coli === null || selectedLocation.e_coli === undefined || selectedLocation.e_coli === "unknown" ? (
+                    <span className="text-slate-500 font-medium">E. Coli (latest test):</span>
+                    {selectedLocation.e_coli === null || selectedLocation.e_coli === undefined || selectedLocation.e_coli === "unknown" ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
                         <span>Unknown</span>
@@ -1015,6 +1048,7 @@ const PublicMap = () => {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
