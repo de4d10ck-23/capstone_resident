@@ -92,7 +92,7 @@ export const AuthProvider = ({ children }) => {
       if (data.success) {
         return { success: true };
       } else {
-        return { success: false, message: data.detail || 'Registration failed' };
+        return { success: false, message: Array.isArray(data.detail) ? data.detail.map(item => item.msg).join('. ') : data.detail || 'Registration failed' };
       }
     } catch (error) {
       console.error('Registration error:', error);

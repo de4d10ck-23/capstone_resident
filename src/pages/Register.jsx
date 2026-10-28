@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { User, Lock, Mail, MapPin, ArrowLeft, ShieldCheck, Droplets, CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { MAASIN_BARANGAYS as barangayList } from '../constants/barangays';
 
 const Register = () => {
   const { register } = useAuth();
-  const navigate = useNavigate();
+  const [message, setMessage] = useState('');
   
   const [formData, setFormData] = useState({
     full_name: '',
@@ -27,13 +27,14 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setIsSubmitting(true);
     
     const result = await register(formData);
     if (!result.success) {
       setError(result.message);
     } else {
-      navigate('/login?registered=true');
+      setMessage('Check your email and spam folder. Confirm the link within 15 minutes to create your account. To resend, wait one minute and submit this form again.');
     }
     
     setIsSubmitting(false);
@@ -98,6 +99,7 @@ const Register = () => {
             </div>
           )}
 
+          {message && <p role="status" className="mb-5 p-4 bg-green-50 text-green-800 rounded-xl text-sm">{message}</p>}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
@@ -156,7 +158,7 @@ const Register = () => {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-                Email Address (Optional)
+                Email Address
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -169,6 +171,7 @@ const Register = () => {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="juan@example.com"
+                  required
                 />
               </div>
             </div>
@@ -202,10 +205,10 @@ const Register = () => {
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Registering Account...</span>
+                  <span>Sending verification...</span>
                 </>
               ) : (
-                <span>Complete Registration</span>
+                <span>Send Verification Email</span>
               )}
             </button>
 

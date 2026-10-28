@@ -148,6 +148,7 @@ const Login = () => {
               )}
             </button>
 
+            <Link to="/forgot-password" className="block text-center text-sm font-semibold text-blue-600 hover:text-blue-700">Forgot password?</Link>
             <div className="text-center pt-3 text-sm text-slate-500">
               Don't have an account?{" "}
               <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-700 transition-colors">

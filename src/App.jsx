@@ -8,6 +8,7 @@ import PublicNavbar from './components/PublicNavbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import EmailAccess from './pages/EmailAccess';
 import PublicMap from './pages/PublicMap';
 
 // Protected Pages (Resident Portal)
@@ -27,6 +28,9 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<EmailAccess key="verify" mode="verify-email" />} />
+            <Route path="/forgot-password" element={<EmailAccess key="forgot" mode="forgot-password" />} />
+            <Route path="/reset-password" element={<EmailAccess key="reset" mode="reset-password" />} />
             <Route path="/public-map" element={<PublicMap />} />
           </Route>
           
