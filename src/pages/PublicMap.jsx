@@ -1,9 +1,9 @@
+import ForecastTimeline from "../components/ForecastTimeline";
 import React, { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
   Search,
-  Layers,
   Navigation,
   List,
   Map as MapIcon,
@@ -83,7 +83,8 @@ const PublicMap = () => {
   const isModel = forecast.source === "model";
   const selectedLocation = locations.find((loc) => loc.id === selection?.id) || null;
   const statusLabel = (status) => isModel ? riskLabel(status) : (status || "Unknown");
-  const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/satellite-streets-v12");
+  const [mapStyle] = useState("mapbox://styles/mapbox/satellite-streets-v12");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileTab, setMobileTab] = useState("map"); // 'map' or 'list'
   const [photoGallery, setPhotoGallery] = useState({
     open: false,
@@ -311,8 +312,11 @@ const PublicMap = () => {
     });
 
     map.current = mapInstance;
+    const resizeObserver = new ResizeObserver(() => mapInstance.resize());
+    resizeObserver.observe(mapContainer.current);
 
     return () => {
+      resizeObserver.disconnect();
       mapInstance.remove();
       map.current = null;
     };
@@ -443,7 +447,6 @@ const PublicMap = () => {
 
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col relative overflow-hidden font-sans">
-      <MapForecastControls forecast={forecast} />
       <div className="flex flex-col md:flex-row flex-1 min-h-0">
       {/* Mobile View Toggle Bar (Only visible on small screens) */}
       <div className="md:hidden bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-center gap-1.5 z-20 shadow-sm flex-shrink-0">
@@ -472,8 +475,8 @@ const PublicMap = () => {
       </div>
 
       {/* Map Filter Sidebar */}
-      <div className={`w-full md:w-96 bg-white/95 backdrop-blur-xl border-r border-slate-200 z-10 flex flex-col shadow-xl flex-shrink-0 ${
-        mobileTab === "map" ? "hidden md:flex" : "flex flex-1"
+      <div id="map-station-sidebar" className={`w-full md:w-96 bg-white/95 backdrop-blur-xl border-r border-slate-200 z-10 flex flex-col shadow-xl flex-shrink-0 ${
+        (mobileTab === "map" ? "hidden" : "flex flex-1 md:flex-none") + (sidebarOpen ? " md:flex" : " md:hidden")
       }`}>
         <div className="p-4 sm:p-6 border-b border-slate-100 space-y-3 sm:space-y-4">
           <div>
@@ -601,9 +604,19 @@ const PublicMap = () => {
       </div>
 
       {/* Map Canvas Area */}
-      <div className={`resident-map-canvas flex-1 relative ${mobileTab === "list" ? "hidden md:block" : "block"}`}>
+      <div className={`relative flex-1 min-w-0 min-h-0 flex-col ${mobileTab === "list" ? "hidden md:flex" : "flex"}`}>
+      <button type="button"
+        onClick={() => setSidebarOpen(open => !open)}
+        aria-expanded={sidebarOpen} aria-controls="map-station-sidebar"
+        aria-label={sidebarOpen ? "Hide station sidebar" : "Show station sidebar"}
+        title={sidebarOpen ? "Hide station sidebar" : "Show station sidebar"}
+        className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-30 h-14 w-7 items-center justify-center rounded-r-xl border border-l-0 border-slate-200 bg-white/95 text-blue-900 shadow-lg hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-600">
+        {sidebarOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+      </button>
+      <div className="resident-map-canvas flex-1 min-h-0 relative">
         <style>{`
-          .resident-map-canvas .mapboxgl-ctrl-top-right { top: ${isModel ? 72 : 0}px; }
+          .resident-map-canvas .mapboxgl-ctrl-top-right { top: 0px; }
+          .resident-map-canvas .mapboxgl-ctrl-bottom-left, .resident-map-canvas .mapboxgl-ctrl-bottom-right { bottom: ${isModel ? 60 : 0}px; }
           .show-zoom-labels .station-zoom-label {
             display: block !important;
           }
@@ -621,47 +634,14 @@ const PublicMap = () => {
         `}</style>
         <div ref={mapContainer} className="w-full h-full" />
 
-        {/* Map style and forecast date share the top overlay row. */}
-        <div className="absolute top-3 left-3 right-3 md:top-4 md:left-4 md:right-4 z-10 flex items-start justify-between gap-2 pointer-events-none">
-        <div className="shrink-0 h-9 md:h-12 pointer-events-auto bg-white/95 backdrop-blur-md px-1.5 py-1 md:px-2.5 md:py-2 rounded-xl md:rounded-2xl shadow-xl border border-slate-200/80 flex items-center gap-1 md:gap-1.5 text-[11px] md:text-xs">
-          <div className="px-1 text-slate-400">
-            <Layers size={16} className="w-3.5 h-3.5 md:w-4 md:h-4" />
-          </div>
-          <button
-            onClick={() => setMapStyle("mapbox://styles/mapbox/satellite-streets-v12")}
-            className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl font-semibold transition-all cursor-pointer ${
-              mapStyle === "mapbox://styles/mapbox/satellite-streets-v12"
-                ? "bg-[#0f3b82] text-white shadow-sm"
-                : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
-            }`}
-          >
-            Satellite
-          </button>
-          <button
-            onClick={() => setMapStyle("mapbox://styles/mapbox/streets-v12")}
-            className={`px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl font-semibold transition-all cursor-pointer ${
-              mapStyle === "mapbox://styles/mapbox/streets-v12"
-                ? "bg-[#0f3b82] text-white shadow-sm"
-                : "text-slate-700 hover:text-slate-900 font-medium hover:bg-slate-50"
-            }`}
-          >
-            Streets
-          </button>
-
-        </div>
-
-          {isModel && <label className="pointer-events-auto min-w-0 h-9 md:h-12 flex items-center rounded-xl md:rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-md px-1.5 py-1 md:px-2.5 md:py-2 shadow-xl text-[11px] md:text-xs font-semibold text-slate-700">
-            <select aria-label="Forecast date" value={forecast.day}
-              onChange={(event) => forecast.setDay(Number(event.target.value))}
-              className="w-28 min-w-0 md:w-48 rounded-md border-0 bg-transparent px-1 py-1 text-[11px] md:text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-              {forecast.dates.map((item, index) => <option key={item.value} value={index}>{item.label}</option>)}
-            </select>
-          </label>}
+        {/* Map data controls float inside the main map. */}
+        <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 max-w-[calc(100%-4rem)]">
+          <MapForecastControls forecast={forecast} />
         </div>
 
         {/* Loading Forecast Indicator (Bottom Center of Map) */}
         {isModel && forecast.loading && (
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-200">
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-200">
             <div className="bg-white/95 backdrop-blur-md text-black text-xs md:text-sm font-semibold px-4 py-2 rounded-full shadow-xl border border-slate-200/90 flex items-center gap-2">
               <svg className="animate-spin h-3.5 w-3.5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -833,7 +813,8 @@ const PublicMap = () => {
                 {isModel && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
                   <p className="font-bold">Model forecast · {forecast.date}</p>
                   {selectedLocation.forecast ? <>
-                    <p>Estimated risk: {selectedLocation.forecast.risk_percentage}% · {riskLabel(selectedLocation.status)}</p>
+                    <p>{selectedLocation.forecast.hazard_assessment ? 'Risk index' : 'Estimated risk'}: {selectedLocation.forecast.risk_percentage}{selectedLocation.forecast.hazard_assessment ? ' / 100' : '%'} · {riskLabel(selectedLocation.status)}</p>
+                    {selectedLocation.forecast.hazard_assessment && <p>Environmental risk estimate, not a water test result.</p>}
                     {selectedLocation.forecast.generated_at && <p>Updated: {new Date(selectedLocation.forecast.generated_at).toLocaleString('en-PH', { timeZone: 'Asia/Manila' })} (PH){selectedLocation.forecast.stale ? ' · Older forecast' : ''}</p>}
                     <p>Rain: {selectedLocation.forecast.environmental_metrics.rainfall_24h_mm} mm/day · {selectedLocation.forecast.environmental_metrics.temperature_celsius}°C · Humidity: {selectedLocation.forecast.environmental_metrics.humidity_percent}%</p>
                     <p>Weather-based estimate; use sanitation records for the latest tested status.</p>
@@ -1048,6 +1029,8 @@ const PublicMap = () => {
             </div>
           </div>
         )}
+      </div>
+      {isModel && <ForecastTimeline forecast={forecast} />}
       </div>
       </div>
     </div>
