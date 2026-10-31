@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, NavLink, Link } from 'react-router-dom';
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
 import { Map, LogIn, UserPlus, Menu, X, Home, Compass, Smartphone, Download } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import usePushNotifications from '../hooks/usePushNotifications';
@@ -7,6 +7,7 @@ import usePushNotifications from '../hooks/usePushNotifications';
 const PublicNavbar = () => {
   const { user, API_URL } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMapPage = useLocation().pathname === '/public-map';
   const { canInstall, isStandalone, isInstalled, promptInstall } = usePushNotifications(API_URL, user);
 
   useEffect(() => {
@@ -21,8 +22,8 @@ const PublicNavbar = () => {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <header className="h-20 bg-white/90 backdrop-blur-xl border-b border-slate-100 px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+    <div className={`${isMapPage ? 'h-dvh min-h-0 overflow-hidden' : 'min-h-screen'} w-full min-w-0 bg-slate-50 flex flex-col font-sans`}>
+      <header className="h-20 shrink-0 bg-white/90 backdrop-blur-xl border-b border-slate-100 px-4 sm:px-6 lg:px-12 flex items-center justify-between sticky top-0 z-50 shadow-sm">
         <Link to="/" className="flex items-center space-x-3 text-decoration-none group">
           <img
             src="/images/logo/waterwatch-icon-192.png"
@@ -186,7 +187,7 @@ const PublicNavbar = () => {
         </>
       )}
       
-      <main className="flex-1">
+      <main className={`flex-1 min-w-0 ${isMapPage ? 'min-h-0 overflow-hidden' : ''}`}>
         <Outlet />
       </main>
     </div>
