@@ -46,13 +46,13 @@ const MyBarangay = () => {
   const dangerCount = sources.filter((s) => s.status?.toLowerCase() === "undrinkable" || s.status?.toLowerCase() === "contaminated").length;
 
   return (
-    <div className="space-y-8 animate-fade-in font-sans">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in font-sans min-w-0">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-2">
+      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-5 sm:p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 overflow-hidden">
+        <div className="space-y-2 min-w-0 w-full md:w-auto">
           <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">Local Surveillance Area</span>
-          <h1 className="text-3xl font-extrabold text-white">Barangay {user?.barangay || "Community"}</h1>
-          <p className="text-white/80 text-sm max-w-xl">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white truncate">Barangay {user?.barangay || "Community"}</h1>
+          <p className="text-white/80 text-xs sm:text-sm max-w-xl">
             Real-time drinking water monitoring, quality advisories, and direct links to health inspections for your neighborhood.
           </p>
         </div>
@@ -156,8 +156,10 @@ const MyBarangay = () => {
 
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">{s.full_name || s.name || "Water Station"}</td>
-                        <td className="py-3.5 px-4 text-slate-600 capitalize">{(s.source_type || s.type || "Well").replace(/_/g, " ")}</td>
+                        <td className="py-3.5 px-4 font-bold text-slate-900 max-w-[160px] sm:max-w-xs truncate" title={s.full_name || s.name || "Water Station"}>
+                          {s.full_name || s.name || "Water Station"}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600 capitalize max-w-[120px] truncate">{(s.source_type || s.type || "Well").replace(/_/g, " ")}</td>
                         <td className="py-3.5 px-4">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             isSafe 
@@ -221,14 +223,14 @@ const MyBarangay = () => {
               </div>
             ) : (
               notifications.slice(0, 4).map((n) => (
-                <div key={n.id} className="p-4 rounded-xl bg-blue-50/50 border border-blue-100/80 space-y-1">
-                  <div className="flex justify-between items-start">
-                    <span className="font-bold text-xs text-blue-900">{n.title}</span>
-                    <span className="text-[10px] text-slate-400">
+                <div key={n.id} className="p-4 rounded-xl bg-blue-50/50 border border-blue-100/80 space-y-1 overflow-hidden">
+                  <div className="flex justify-between items-start gap-2 min-w-0">
+                    <span className="font-bold text-xs text-blue-900 truncate min-w-0" title={n.title}>{n.title}</span>
+                    <span className="text-[10px] text-slate-400 shrink-0">
                       {n.created_at ? new Date(n.created_at).toLocaleDateString() : 'Recent'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600">{n.message}</p>
+                  <p className="text-xs text-slate-600 line-clamp-2 break-words" title={n.message}>{n.message}</p>
                 </div>
               ))
             )}

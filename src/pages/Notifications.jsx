@@ -386,11 +386,11 @@ const Notifications = () => {
                         )}
                       </div>
 
-                      <h3 className="font-bold text-sm sm:text-base text-slate-900 leading-snug">
+                      <h3 className="font-bold text-sm sm:text-base text-slate-900 leading-snug truncate" title={n.title}>
                         {n.title}
                       </h3>
 
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words whitespace-pre-line">
+                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words whitespace-pre-line line-clamp-3">
                         {n.message}
                       </p>
                     </div>

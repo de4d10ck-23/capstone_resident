@@ -328,14 +328,14 @@ const SubmitConcern = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in font-sans">
+    <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 animate-fade-in font-sans min-w-0">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-8 text-white shadow-xl">
-        <div className="flex items-center gap-3 mb-2">
-          <MessageSquare size={24} className="text-cyan-300" />
-          <h1 className="text-3xl font-extrabold text-white">Submit Concern & Inspection Request</h1>
+      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-5 sm:p-8 text-white shadow-xl overflow-hidden">
+        <div className="flex items-center gap-3 mb-2 min-w-0">
+          <MessageSquare size={24} className="text-cyan-300 shrink-0" />
+          <h1 className="text-xl sm:text-3xl font-extrabold text-white truncate">Submit Concern & Inspection Request</h1>
         </div>
-        <p className="text-white/80 text-sm max-w-xl">
+        <p className="text-white/80 text-xs sm:text-sm max-w-xl">
           Report broken water pipes, unhygienic toilet proximity, contaminated supplies, or request water quality inspections directly to your Barangay Officials for triage.
         </p>
       </div>
@@ -370,7 +370,7 @@ const SubmitConcern = () => {
                   const nextCat = e.target.value;
                   setFormData({ ...formData, category: nextCat });
                 }}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium truncate"
               >
                 <option value="request_inspection">Water Inspection Request (Field Audit / Sampling)</option>
                 <option value="water_quality">Water Quality (Odor, Color, Taste)</option>
@@ -408,7 +408,7 @@ const SubmitConcern = () => {
                 required
                 disabled={loadingLocations}
                 onChange={(e) => handleLocationChange(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-medium truncate"
               >
                 <option value="">-- Select a water source --</option>
                 {locations.map((loc) => (
@@ -542,15 +542,15 @@ const SubmitConcern = () => {
       </div>
 
       {/* My Submitted Concerns & Live Status Tracking */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
-        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">My Submitted Concerns & Requests</h2>
+      <div className="bg-white rounded-3xl p-4 sm:p-8 border border-slate-200/80 shadow-sm space-y-4 overflow-hidden">
+        <div className="flex justify-between items-center gap-3 pb-2 border-b border-slate-100">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 truncate">My Submitted Concerns & Requests</h2>
             <p className="text-xs text-slate-500">Track real-time progress as your Barangay and Inspectors process your reports</p>
           </div>
           <button
             onClick={fetchMyReports}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
             title="Refresh status"
           >
             <RefreshCw size={15} className={loadingReports ? "animate-spin" : ""} />
@@ -578,12 +578,12 @@ const SubmitConcern = () => {
               return (
                 <div
                   key={r.id}
-                  className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all hover:bg-slate-50"
+                  className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:bg-slate-50 overflow-hidden"
                 >
-                  <div className="space-y-1 min-w-0 flex-1">
+                  <div className="space-y-1 min-w-0 w-full flex-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h4 className="font-bold text-sm text-slate-900 truncate" title={r.title}>{r.title}</h4>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize flex-shrink-0 whitespace-nowrap ${
+                      <h4 className="font-bold text-sm text-slate-900 truncate min-w-0" title={r.title}>{r.title}</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize flex-shrink-0 whitespace-nowrap max-w-[110px] truncate ${
                         (r.type || r.category) === "request_inspection"
                           ? "bg-cyan-50 border-cyan-200 text-cyan-800"
                           : "bg-white border-slate-200 text-slate-600"
@@ -591,21 +591,21 @@ const SubmitConcern = () => {
                         {(r.type || r.category || "Concern").replace(/_/g, " ")}
                       </span>
                     </div>
-                    {displayDesc ? <p className="text-xs text-slate-600">{displayDesc}</p> : null}
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
-                      <span>Brgy. {r.barangay}</span>
+                    {displayDesc ? <p className="text-xs text-slate-600 truncate" title={displayDesc}>{displayDesc}</p> : null}
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-400 pt-1 min-w-0">
+                      <span className="truncate max-w-[140px]">Brgy. {r.barangay}</span>
                       <span>•</span>
-                      <span>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}</span>
+                      <span className="shrink-0">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}</span>
                       {r.reason && (
                         <>
                           <span>•</span>
-                          <span className="text-amber-700 italic">Brgy Note: {r.reason}</span>
+                          <span className="text-amber-700 italic truncate max-w-full" title={r.reason}>Brgy Note: {r.reason}</span>
                         </>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setDetailReport(r)}
@@ -629,7 +629,7 @@ const SubmitConcern = () => {
                       </button>
                     )}
 
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 max-w-full ${
                       isEscalated
                         ? "bg-purple-100 text-purple-800 border border-purple-200"
                         : isDone
@@ -638,9 +638,9 @@ const SubmitConcern = () => {
                         ? "bg-rose-100 text-rose-800 border border-rose-200"
                         : "bg-amber-100 text-amber-800 border border-amber-200"
                     }`}>
-                      {isPending && <Clock size={11} />}
-                      {isEscalated && <Send size={11} />}
-                      <span>
+                      {isPending && <Clock size={11} className="shrink-0" />}
+                      {isEscalated && <Send size={11} className="shrink-0" />}
+                      <span className="truncate">
                         {isProcessing ? "Processing" : isEscalated
                           ? "Passed to CHU"
                           : isDone

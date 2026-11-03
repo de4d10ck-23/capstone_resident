@@ -108,13 +108,13 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
     <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-fade-in">
       <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 relative space-y-6 max-h-[92vh] overflow-y-auto font-sans">
         {/* Header */}
-        <div className="flex justify-between items-start pb-4 border-b border-slate-100">
-          <div className="space-y-1">
+        <div className="flex justify-between items-start gap-3 pb-4 border-b border-slate-100 min-w-0">
+          <div className="space-y-1 min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
                 {(report.type || report.category || "Concern").replace(/_/g, " ")}
               </span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap inline-flex items-center ${
                 isEscalated
                   ? "bg-purple-100 text-purple-800 border border-purple-200"
                   : isDone
@@ -132,7 +132,7 @@ const ReportDetailModal = ({ report, onClose, onDelete }) => {
                   : "Pending Barangay Review"}
               </span>
             </div>
-            <h2 className="text-xl font-extrabold text-slate-900 pt-1">{report.title}</h2>
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 pt-1 break-words">{report.title}</h2>
           </div>
 
           <button

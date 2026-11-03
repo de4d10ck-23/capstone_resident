@@ -773,14 +773,14 @@ const AddWaterSource = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in font-sans">
+    <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 animate-fade-in font-sans min-w-0">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-8 text-white shadow-xl">
-        <div className="flex items-center gap-3 mb-2">
-          <PlusCircle size={26} className="text-cyan-300" />
-          <h1 className="text-3xl font-extrabold text-white">Add Water Source</h1>
+      <div className="bg-gradient-to-r from-blue-900 via-blue-800 to-cyan-800 rounded-3xl p-5 sm:p-8 text-white shadow-xl overflow-hidden">
+        <div className="flex items-center gap-3 mb-2 min-w-0">
+          <PlusCircle size={26} className="text-cyan-300 shrink-0" />
+          <h1 className="text-xl sm:text-3xl font-extrabold text-white truncate">Add Water Source</h1>
         </div>
-        <p className="text-white/80 text-sm max-w-xl">
+        <p className="text-white/80 text-xs sm:text-sm max-w-xl">
           Report and pinpoint new or unregistered drinking water sources (deep wells, springs, or public stations) directly to your Barangay Officials and Health Inspectors for inspection and verification.
         </p>
       </div>
@@ -935,17 +935,17 @@ const AddWaterSource = () => {
               
 
               {/* Floating Boundary Badge & Focus Button on bottom-left of map */}
-              <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-slate-800 text-xs font-medium shadow-lg border border-slate-200/90 flex items-center gap-2.5 z-10">
-                <span className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border-2 border-sky-600 flex items-center justify-center">
+              <div className="absolute bottom-3 left-3 max-w-[calc(100%-1.5rem)] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl text-slate-800 text-xs font-medium shadow-lg border border-slate-200/90 flex items-center gap-2 z-10 min-w-0">
+                <span className="w-3.5 h-3.5 rounded-full bg-sky-500/20 border-2 border-sky-600 flex items-center justify-center shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-600"></span>
                 </span>
-                <span className="font-semibold text-slate-700">
+                <span className="font-semibold text-slate-700 truncate">
                   Barangay {user?.barangay || "Abgao"} Boundary
                 </span>
                 <button
                   type="button"
                   onClick={handleFitToBoundary}
-                  className="ml-1 px-2.5 py-0.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold border border-sky-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="ml-1 px-2.5 py-0.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 text-[11px] font-bold border border-sky-200 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
                   title="Focus view on designated barangay boundary"
                 >
                   <Maximize2 size={11} />
@@ -1122,15 +1122,15 @@ const AddWaterSource = () => {
       </div>
 
       {/* My Submitted Water Sources & Live Status Tracking */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-4">
-        <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">My Added Water Sources</h2>
+      <div className="bg-white rounded-3xl p-4 sm:p-8 border border-slate-200/80 shadow-sm space-y-4 overflow-hidden">
+        <div className="flex justify-between items-center gap-3 pb-2 border-b border-slate-100">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 truncate">My Added Water Sources</h2>
             <p className="text-xs text-slate-500">Track real-time inspection status as your Barangay and Health Inspectors verify your submitted water sources</p>
           </div>
           <button
             onClick={fetchMySources}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
             title="Refresh status"
           >
             <RefreshCw size={15} className={loadingSources ? "animate-spin" : ""} />
@@ -1157,38 +1157,38 @@ const AddWaterSource = () => {
               return (
                 <div
                   key={r.id}
-                  className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all hover:bg-slate-50"
+                  className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:bg-slate-50 overflow-hidden"
                 >
-                  <div className="space-y-1 min-w-0 flex-1">
+                  <div className="space-y-1 min-w-0 w-full flex-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h4 className="font-bold text-sm text-slate-900 truncate" title={r.title}>{r.title}</h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200 text-blue-700 flex-shrink-0 whitespace-nowrap">
+                      <h4 className="font-bold text-sm text-slate-900 truncate min-w-0" title={r.title}>{r.title}</h4>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 border border-blue-200 text-blue-700 flex-shrink-0 whitespace-nowrap max-w-[115px] truncate">
                         New Water Source
                       </span>
                     </div>
-                    {displayDesc ? <p className="text-xs text-slate-600">{displayDesc}</p> : null}
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
-                      <span>Brgy. {r.barangay}</span>
+                    {displayDesc ? <p className="text-xs text-slate-600 truncate" title={displayDesc}>{displayDesc}</p> : null}
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-400 pt-1 min-w-0">
+                      <span className="truncate max-w-[140px]">Brgy. {r.barangay}</span>
                       {r.latitude && r.longitude && (
                         <>
                           <span>•</span>
-                          <span className="font-mono text-slate-500">
+                          <span className="font-mono text-slate-500 shrink-0">
                             {parseFloat(r.latitude).toFixed(4)}, {parseFloat(r.longitude).toFixed(4)}
                           </span>
                         </>
                       )}
                       <span>•</span>
-                      <span>{r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}</span>
+                      <span className="shrink-0">{r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}</span>
                       {r.reason && (
                         <>
                           <span>•</span>
-                          <span className="text-amber-700 italic">Brgy Note: {r.reason}</span>
+                          <span className="text-amber-700 italic truncate max-w-full" title={r.reason}>Brgy Note: {r.reason}</span>
                         </>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => setDetailReport(r)}
@@ -1212,7 +1212,7 @@ const AddWaterSource = () => {
                       </button>
                     )}
 
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 max-w-full ${
                       isEscalated
                         ? "bg-purple-100 text-purple-800 border border-purple-200"
                         : isDone
@@ -1221,9 +1221,9 @@ const AddWaterSource = () => {
                         ? "bg-rose-100 text-rose-800 border border-rose-200"
                         : "bg-amber-100 text-amber-800 border border-amber-200"
                     }`}>
-                      {isPending && <Clock size={11} />}
-                      {isEscalated && <Send size={11} />}
-                      <span>
+                      {isPending && <Clock size={11} className="shrink-0" />}
+                      {isEscalated && <Send size={11} className="shrink-0" />}
+                      <span className="truncate">
                         {isProcessing ? "Processing" : isEscalated
                           ? "Passed to CHU"
                           : isDone

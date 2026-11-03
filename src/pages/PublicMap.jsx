@@ -563,10 +563,10 @@ const PublicMap = () => {
                     : "border-slate-100 bg-white hover:border-slate-300 hover:shadow-xs"
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="text-sm font-bold text-slate-800 leading-tight">{loc.name}</h3>
+                <div className="flex items-start justify-between gap-2 min-w-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <h3 className="text-sm font-bold text-slate-800 leading-tight truncate min-w-0" title={loc.name}>{loc.name}</h3>
                       {(() => {
                         const photos = parseLocationPhotos(loc);
                         if (photos.length === 0) return null;

@@ -161,16 +161,6 @@ const Layout = () => {
       </nav>
 
       <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-3">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-700 to-cyan-600 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
-            {user?.full_name?.charAt(0) || 'R'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-slate-900 truncate">{user?.full_name}</p>
-            <p className="text-xs text-slate-500 font-medium truncate">Brgy. {user?.barangay}</p>
-          </div>
-        </div>
-
         {!isStandalone && (
           <div className="mx-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 rounded-2xl space-y-2">
             <div className="flex items-center gap-2">
@@ -196,6 +186,16 @@ const Layout = () => {
             </button>
           </div>
         )}
+
+        <div className="flex items-center gap-3 px-2">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-700 to-cyan-600 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+            {user?.full_name?.charAt(0) || 'R'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-slate-900 truncate">{user?.full_name}</p>
+            <p className="text-xs text-slate-500 font-medium truncate">Brgy. {user?.barangay}</p>
+          </div>
+        </div>
 
         <button 
           onClick={logout}
@@ -305,7 +305,7 @@ const Layout = () => {
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
