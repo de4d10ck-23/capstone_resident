@@ -77,6 +77,7 @@ const PublicMap = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBarangay, setSelectedBarangay] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
+  const [sortBy, setSortBy] = useState("alphabetical");
   const [selection, setSelectedLocation] = useState(null);
   const forecast = useMapForecast(API_URL, records, selectedBarangay);
   const { locations } = forecast;
@@ -432,18 +433,27 @@ const PublicMap = () => {
     new Set([...MAASIN_BARANGAYS, ...locations.map((loc) => loc.barangay).filter(Boolean)])
   ).sort();
 
-  const filteredLocations = locations.filter((loc) => {
-    const matchQuery =
-      loc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loc.barangay?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchBarangay = selectedBarangay === "all" || loc.barangay === selectedBarangay;
-    const sStat = loc.status?.toLowerCase() === "undrinkable" ? "contaminated" : (loc.status?.toLowerCase() || "");
-    const matchStatus =
-      selectedStatus === "all" ||
-      sStat === selectedStatus.toLowerCase() ||
-      (selectedStatus === "unknown" && (sStat === "pending" || !sStat));
-    return matchQuery && matchBarangay && matchStatus;
-  });
+  const filteredLocations = locations
+    .filter((loc) => {
+      const matchQuery =
+        loc.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        loc.barangay?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchBarangay = selectedBarangay === "all" || loc.barangay === selectedBarangay;
+      const sStat = loc.status?.toLowerCase() === "undrinkable" ? "contaminated" : (loc.status?.toLowerCase() || "");
+      const matchStatus =
+        selectedStatus === "all" ||
+        sStat === selectedStatus.toLowerCase() ||
+        (selectedStatus === "unknown" && (sStat === "pending" || !sStat));
+      return matchQuery && matchBarangay && matchStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === "alphabetical") {
+        return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+      }
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return sortBy === "oldest" ? timeA - timeB : timeB - timeA;
+    });
 
   return (
     <div className="h-full w-full min-w-0 min-h-0 flex flex-col relative overflow-hidden font-sans">
@@ -532,9 +542,21 @@ const PublicMap = () => {
 
         {/* Locations List */}
         <div ref={listContainerRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-3 scroll-smooth">
-          <div className="flex items-center justify-between px-2 text-xs font-semibold text-slate-500">
-            <span>Water Stations ({filteredLocations.length})</span>
-            {loading && <span className="text-blue-600 animate-pulse">Loading data...</span>}
+          <div className="flex items-center justify-between gap-2 px-2 text-xs font-semibold text-slate-500">
+            <div className="flex items-center gap-2 min-w-0">
+              <span>Water Stations ({filteredLocations.length})</span>
+              {loading && <span className="text-blue-600 animate-pulse">Loading data...</span>}
+            </div>
+            <select
+              aria-label="Sort water stations"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-medium text-slate-700 focus:outline-none focus:border-blue-600 cursor-pointer shrink-0"
+            >
+              <option value="alphabetical">Alphabetical</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
           </div>
 
           {filteredLocations.map((loc) => {
